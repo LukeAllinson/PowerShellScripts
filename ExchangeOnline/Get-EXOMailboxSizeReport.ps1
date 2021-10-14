@@ -1,97 +1,87 @@
-﻿Function _Progress {
-    Param ($PercentComplete,$Status)
-    Write-Progress -Id 1 -Activity "Exchange EXO Shared Mailbox Size Report" -Status $Status -PercentComplete ($PercentComplete)
-} #End Function _ParentProgress
-Function Get-MailboxInformation ($Mailbox) {
+﻿#Requires -Version 5 -Modules ExchangeOnlineManagement
+
+<#
+	.SYNOPSIS
+		Name: Get-EXOMailboxSizeReport.ps1
+		This gathers mailbox information including primary and archive size and item count.
+
+	.DESCRIPTION
+		This script connects to EXO and then outputs Mailbox information and statistics to a CSV file. 
+
+	.NOTES
+		Version: 0.2
+        Updated: 14-10-2021 v0.2    Rewritten to improve speed, remove superflous information
+		Updated: <unknown>	v0.1	Initial draft
+
+		Authors: Luke Allinson, Robin Dadswell
+#>
+
+param
+(
+    [Parameter(
+        Mandatory
+    )]
+    [ValidateNotNullOrEmpty()]
+    [ValidateScript(
+        {
+            if (!(Test-Path -Path $_)) {
+                throw "The folder $_ does not exist"
+            } else {
+                return $true
+            }
+        })]
+    [IO.DirectoryInfo]
+    $OutputPath
+)
+
+function Get-MailboxInformation ($mailbox) {
     # Get Mailbox Statistics
-    $PrimaryStats = Get-MailboxStatistics -Identity $Mailbox.DistinguishedName -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-    $PrimaryTotalItemSizeMB = $PrimaryStats | Select-Object @{name=”TotalItemSizeMB”; expression={[math]::Round(($_.TotalItemSize.ToString().Split(“(“)[1].Split(” “)[0].Replace(“,”,””)/1MB),2)}}
-    $ArchiveStats = Get-MailboxStatistics -Identity $Mailbox.DistinguishedName -Archive -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-    $ArchiveTotalItemSizeMB = $ArchiveStats | Select-Object @{name=”TotalItemSizeMB”; expression={[math]::Round(($_.TotalItemSize.ToString().Split(“(“)[1].Split(” “)[0].Replace(“,”,””)/1MB),2)}}
+    $primaryStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    $primaryTotalItemSizeMB = $primaryStats | Select-Object @{name=”TotalItemSizeMB”; expression={[math]::Round(($_.TotalItemSize.ToString().Split(“(“)[1].Split(” “)[0].Replace(“,”,””)/1MB),2)}}
+    # If an Archive exists, then get Statistics
+    if ($mailbox.ArchiveStatus -ne "None") {
+        $archiveStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -Archive -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+        $archiveTotalItemSizeMB = $archiveStats | Select-Object @{name=”TotalItemSizeMB”; expression={[math]::Round(($_.TotalItemSize.ToString().Split(“(“)[1].Split(” “)[0].Replace(“,”,””)/1MB),2)}}
+    }
     # Store everything in an Arraylist
-    $UserObj = [System.Collections.ArrayList]@()
-    $UserObj = @{
-        UPN = $Mailbox.UserPrincipalName
-        Name = $Mailbox.Name
-        DisplayName = $Mailbox.Displayname
-        SimpleDisplayName = $Mailbox.SimpleDisplayName
-        PrimarySmtpAddress = $Mailbox.PrimarySmtpAddress
-        Alias = $Mailbox.Alias
-        SamAccountName = $Mailbox.SamAccountName
-        RecipientTypeDetails = $Mailbox.RecipientTypeDetails
-        ForwardingAddress = $Mailbox.ForwardingAddress
-        ForwardingSmtpAddress = $Mailbox.ForwardingSmtpAddress
-        DeliverToMailboxAndForward = $Mailbox.DeliverToMailboxAndForward
-        LitigationHoldEnabled = $Mailbox.LitigationHoldEnabled
-        RetentionHoldEnabled = $Mailbox.RetentionHoldEnabled
-        InPlaceHolds = $Mailbox.InPlaceHolds
-        GrantSendOnBehalfTo = $Mailbox.GrantSendOnBehalfTo
-        HiddenFromAddressListsEnabled = $Mailbox.HiddenFromAddressListsEnabled
-        ExchangeGuid = $Mailbox.ExchangeGuid
-        ArchiveStatus = $Mailbox.ArchiveStatus
-        ArchiveName = $Mailbox.ArchiveName
-        ArchiveGuid = $Mailbox.ArchiveGuid
-        EmailAddresses = ($Mailbox.EmailAddresses -join ";")
-        WhenChanged = $Mailbox.WhenChanged
-        WhenChangedUTC = $Mailbox.WhenChangedUTC
-        WhenMailboxCreated = $Mailbox.WhenMailboxCreated
-        WhenCreated = $Mailbox.WhenCreated
-        WhenCreatedUTC = $Mailbox.WhenCreatedUTC
-        UMEnabled = $Mailbox.UMEnabled
-        ExternalOofOptions = $Mailbox.ExternalOofOptions
-        IssueWarningQuota = $Mailbox.IssueWarningQuota
-        ProhibitSendQuota = $Mailbox.ProhibitSendQuota
-        ProhibitSendReceiveQuota = $Mailbox.ProhibitSendReceiveQuota
-        UseDatabaseQuotaDefaults = $Mailbox.UseDatabaseQuotaDefaults
-        MaxSendSize = $Mailbox.MaxSendSize
-        MaxReceiveSize = $Mailbox.MaxReceiveSize
-        CustomAttribute1 = $Mailbox.CustomAttribute1
-        CustomAttribute2 = $Mailbox.CustomAttribute2
-        CustomAttribute3 = $Mailbox.CustomAttribute3
-        CustomAttribute4 = $Mailbox.CustomAttribute4
-        CustomAttribute5 = $Mailbox.CustomAttribute5
-        CustomAttribute6 = $Mailbox.CustomAttribute6
-        CustomAttribute7 = $Mailbox.CustomAttribute7
-        CustomAttribute8 = $Mailbox.CustomAttribute8
-        CustomAttribute9 = $Mailbox.CustomAttribute9
-        CustomAttribute10 = $Mailbox.CustomAttribute10
-        CustomAttribute11 = $Mailbox.CustomAttribute11
-        CustomAttribute12 = $Mailbox.CustomAttribute12
-        CustomAttribute13 = $Mailbox.CustomAttribute13
-        CustomAttribute14 = $Mailbox.CustomAttribute14
-        CustomAttribute15 = $Mailbox.CustomAttribute15
-        ExtensionCustomAttribute1 = $Mailbox.ExtensionCustomAttribute1
-        ExtensionCustomAttribute2 = $Mailbox.ExtensionCustomAttribute2
-        ExtensionCustomAttribute3 = $Mailbox.ExtensionCustomAttribute3
-        ExtensionCustomAttribute4 = $Mailbox.ExtensionCustomAttribute4
-        ExtensionCustomAttribute5 = $Mailbox.ExtensionCustomAttribute5
+    $mailboxInfo = @{
+        UserPrincipalName = $mailbox.UserPrincipalName
+        DisplayName = $mailbox.Displayname
+        PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
+        Alias = $mailbox.Alias
+        RecipientTypeDetails = $mailbox.RecipientTypeDetails
+        LitigationHoldEnabled = $mailbox.LitigationHoldEnabled
+        RetentionHoldEnabled = $mailbox.RetentionHoldEnabled
+        InPlaceHolds = $mailbox.InPlaceHolds
+        ArchiveStatus = $mailbox.ArchiveStatus
     }
-    If ($PrimaryStats) {
-        $UserObj["TotalItemSize(MB)"] = $PrimaryTotalItemSizeMB.TotalItemSizeMB
-        $UserObj["ItemCount"] = $PrimaryStats.ItemCount
-        $UserObj["DeletedItemCount"] = $PrimaryStats.DeletedItemCount
-        $UserObj["LastLogonTime"] = $PrimaryStats.LastLogonTime
+    if ($primaryStats) {
+        $mailboxInfo["TotalItemSize(MB)"] = $primaryTotalItemSizeMB.TotalItemSizeMB
+        $mailboxInfo["ItemCount"] = $primaryStats.ItemCount
+        $mailboxInfo["DeletedItemCount"] = $primaryStats.DeletedItemCount
+        $mailboxInfo["LastLogonTime"] = $primaryStats.LastLogonTime
     }
-    If ($ArchiveStats) {
-        $UserObj["Archive_TotalItemSize(MB)"] = $ArchiveTotalItemSizeMB.TotalItemSizeMB
-        $UserObj["Archive_ItemCount"] = $ArchiveStats.ItemCount
-        $UserObj["Archive_DeletedItemCount"] = $ArchiveStats.DeletedItemCount
-        $UserObj["Archive_LastLogonTime"] = $ArchiveStats.LastLogonTime
+    if ($archiveStats) {
+        $mailboxInfo["Archive_TotalItemSize(MB)"] = $archiveTotalItemSizeMB.TotalItemSizeMB
+        $mailboxInfo["Archive_ItemCount"] = $archiveStats.ItemCount
+        $mailboxInfo["Archive_DeletedItemCount"] = $archiveStats.DeletedItemCount
+        $mailboxInfo["Archive_LastLogonTime"] = $archiveStats.LastLogonTime
     }
-    Return $UserObj
+    return [PSCustomObject]$mailboxInfo
 } #End Function Get-MailboxInformation
 
 # Main Script
+$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$tenantName = (Get-OrganizationConfig).Name.Split(".")[0]
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxSizeReport.csv'
+$output = [System.Collections.ArrayList]@()
+$mailboxes = @(Get-EXOMailbox -Resultsize Unlimited -Properties LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,ArchiveStatus)
+$mailboxCount = $mailboxes.Count
 $i = 1
-$Date = Get-Date -Format ddMMyyyy-HHmm
-$Output = [System.Collections.ArrayList]@()
-$Mailboxes = @(Get-Mailbox -Resultsize Unlimited)
-$MailboxCount = $Mailboxes.Count
-$i = 1
-ForEach ($MB in $Mailboxes) {
-    _Progress (($i*100)/$MailboxCount) "Processing $($i) of $($MailboxCount) Mailboxes --- $($MB.UserPrincipalName)"
-    $MailboxInfo = Get-MailboxInformation $MB
-    $Output.Add([PSCustomObject]$MailboxInfo) | Out-Null
+foreach ($mailbox in $mailboxes) {
+    Write-Progress -Id 1 -Activity "EXO Mailbox Size Report" -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i*100)/$mailboxCount)
+    $mailboxInfo = Get-MailboxInformation $mailbox
+    $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
     $i++
 }
-$Output | Select-Object UPN,Name,DisplayName,SimpleDisplayName,PrimarySmtpAddress,Alias,SamAccountName,RecipientTypeDetails,ForwardingAddress,ForwardingSmtpAddress,DeliverToMilboxAndForward,LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,GrantSendOnBehalfTo,HiddenFromAddressListsEnabled,ExchangeGuid,"TotalItemSize(MB)",ItemCount,DeletedItemCount,LastLogonTime,ArchiveStatus,ArchiveName,ArchiveGuid,"Archive_TotalItemSize(MB)",Archive_ItemCount,Archive_DeletedItemCount,Arhive_LastLogonTime,EmailAddresses,WhenChanged,WhenChangedUTC,WhenMailboxCreated,WhenCreated,WhenCreatedUTC,UMEnabled,ExternalOofOptions,IssueWarningQuota,ProhiitSendQuota,ProhibitSendReceiveQuota,UseDatabaseQuotaDefaults,MaxSendSize,MaxReceiveSize,CustomAttribute1,CustomAttribute2,CustomAttribute3,CustomAttribue4,CustomAttribute5,CustomAttribute6,CustomAttribute7,CustomAttribute8,CustomAttribute9,CustomAttribute10,CustomAttribute11,CustomAttribute12,CustomAttriute13,CustomAttribute14,CustomAttribute15,ExtensionCustomAttribute1,ExtensionCustomAttribute2,ExtensionCustomAttribute3,ExtensionCustomAttribute4,ExtensionCustomAttribute5 | Export-Csv .\ExO_MailboxSizeReport_$Date.csv -NoClobber -NoTypeInformation -Encoding UTF8
+$output | Select-Object UserPrincipalName,DisplayName,PrimarySmtpAddress,Alias,RecipientTypeDetails,LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,"TotalItemSize(MB)",ItemCount,DeletedItemCount,LastLogonTime,ArchiveStatus,"Archive_TotalItemSize(MB)",Archive_ItemCount,Archive_DeletedItemCount,Arhive_LastLogonTime | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8

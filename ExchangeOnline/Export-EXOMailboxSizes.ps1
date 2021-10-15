@@ -3,10 +3,10 @@
 <#
 	.SYNOPSIS
 		Name: Get-EXOMailboxSizeReport.ps1
-		This gathers mailbox information including primary and archive size and item count.
+		This gathers mailbox size information including primary and archive size and item count.
 
 	.DESCRIPTION
-		This script connects to EXO and then outputs Mailbox information and statistics to a CSV file. 
+		This script connects to EXO and then outputs Mailbox statistics to a CSV file. 
 
 	.NOTES
 		Version: 0.2

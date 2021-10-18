@@ -147,7 +147,7 @@ $i = 1
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose "Getting Tenant Name for file name from Exchange Online"
 $tenantName = (Get-OrganizationConfig).Name.Split(".")[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxSizeReport.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxSizes.csv'
 
 Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue) {

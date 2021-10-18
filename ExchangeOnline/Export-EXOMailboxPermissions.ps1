@@ -2,206 +2,333 @@
 
 <#
 	.SYNOPSIS
-		Name: Get-EXOMailboxPermissionsReport.ps1
+		Name: Get-EXOMailboxPermissions.ps1
 		This script enumerates all permissions for every mailbox into a csv
 
 	.DESCRIPTION
-		This script connects to EXO and then outputs permissions for each mailbox into a CSV 
+		This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
 	.NOTES
-		Version: 0.2
+		Version: 0.3
+        Updated: 18-10-2021 v0.3    Refactored to remove unnecessary lines, add error handling and improve formatting
         Updated: 14-10-2021 v0.2    Updated to use Rest-based commands where possible
 		Updated: 01-05-2021	v0.1	Initial draft
 
 		Authors: Luke Allinson, Robin Dadswell
+
+    .PARAMETER OutputPath
+        Full path to the folder where the output will be saved.
+        Can be used without the parameter name in the first position only.
+
+    .PARAMETER RecipientTypeDetails
+        Provide one or more RecipientTypeDetails values to return only mailboxes of those types in the results. Seperate multiple values by commas.
+        Valid values are: DiscoveryMailbox, EquipmentMailbox, GroupMailbox, RoomMailbox, SchedulingMailbox, SharedMailbox, TeamMailbox, UserMailbox.
+
+    .PARAMETER MailboxFilter
+        Provide a filter to reduce the size of the Get-EXOMailbox query; this must follow oPath syntax standards.
+        For example:
+        'EmailAddresses -like "*bruce*"'
+        'DisplayName -like "*wayne*"'
+        'CustomAttribute1 -eq "InScope"'
+
+    .PARAMETER IncludeNoPermissions
+        Includes mailboxes with no permissions in the export; by default only valid permissions are shown in the export.
+        For example, if User01 has Full Access and SendOnBehalf permissions, then only these are shown in the report by default. If the IncludeNoPermissions parameter is included then SendAs permissions will also be included as "<none>".
+        Similarly, if User02 has no permissions at all it will not be present in the export, however with this parameter set all three permissions will be included as "<none>".
+
+    .EXAMPLE
+        .\Export-EXOMailboxPermissions.ps1 C:\Scripts\
+        Exports mailbox permissions for all mailbox types
+
+    .EXAMPLE
+        .\Export-EXOMailboxPermissions.ps1 -RecipientTypeDetails RoomMailbox,EquipmentMailbox -OutputPath C:\Scripts\ -IncludeNoPermissions
+        Exports mailbox permissions only for Room and Equipment mailboxes; include all permissions, even if blank.
+
+    .EXAMPLE
+        .\Export-EXOMailboxPermissions.ps1 C:\Scripts\ -MailboxFilter 'Department -eq "R&D"'
+        Exports mailbox permissions for all mailboxes from the R&D department
 #>
 
+[CmdletBinding()]
 param
 (
     [Parameter(
-        Mandatory
+        Mandatory,
+        Position = 0
     )]
     [ValidateNotNullOrEmpty()]
     [ValidateScript(
         {
-            if (!(Test-Path -Path $_)) {
+            if (!(Test-Path -Path $_))
+            {
                 throw "The folder $_ does not exist"
-            } else {
+            }
+            else
+            {
                 return $true
             }
-        })]
+        }
+    )]
     [IO.DirectoryInfo]
-    $OutputPath
+    $OutputPath,
+    [Parameter()]
+    [switch]
+    $IncludeNoPermissions,
+    [Parameter()]
+    [ValidateSet(
+        'DiscoveryMailbox',
+        'EquipmentMailbox',
+        'GroupMailbox',
+        'RoomMailbox',
+        'SchedulingMailbox',
+        'SharedMailbox',
+        'TeamMailbox',
+        'UserMailbox'
+    )]
+    [string[]]
+    $RecipientTypeDetails,
+    [Parameter()]
+    [Alias('Filter')]
+    [string]
+    $MailboxFilter
 )
 
-# Check if there is an active Exchange Online PowerShell session
+### Main Script
+# Check if there is an active Exchange Online PowerShell session and connect if not
 $PSSessions = Get-PSSession | Select-Object -Property State, Name
-if (((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -gt 0) -ne $true) {
-    Write-Host "Exchange Online PowerShell not connected..." -ForegroundColor Yellow
-    Write-Host "Connecting..." -ForegroundColor Yellow
+if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+{
+    Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline
-} else {
-    Write-Host "Already connected to Exchange Online PowerShell" -ForegroundColor Green
 }
-
-# Print screen output description
-Write-Host
-Write-Host "Mailbox Permissions Report"
-Write-Host "---------------------------------"
-Write-Host "Mailbox being processed in Green" -ForegroundColor Green
-Write-Host "Full Mailbox Permissions in Cyan" -ForegroundColor Cyan
-Write-Host "SendAs Permissions in Magenta" -ForegroundColor Magenta
-Write-Host "SendOnBehalf Permissions in Yellow" -ForegroundColor Yellow
-Start-Sleep -Seconds 5
 
 # Set Constants and Variables
 $i = 1
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
-$tenantName = (Get-OrganizationConfig).Name.Split(".")[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxInformation.csv'
-$output = [System.Collections.ArrayList]@()
-Write-Host
-Write-Host "Getting all Mailboxes..."
-Write-Host
-$mailboxes = Get-EXOMailbox -Resultsize Unlimited -Properties IsDirSynced,GrantSendOnBehalfTo | Sort-Object UserPrincipalName
+$tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxPermissions.csv'
+$output = New-Object System.Collections.Generic.List[System.Object]
+
+# Define a hashtable for splatting into Get-EXOMailbox
+$commandHashTable = @{
+    Properties  = 'IsDirSynced', 'GrantSendOnBehalfTo'
+    ResultSize  = 'Unlimited'
+    ErrorAction = 'Stop'
+}
+
+if ($RecipientTypeDetails)
+{
+    $commandHashTable['RecipientTypeDetails'] = $RecipientTypeDetails
+}
+
+if ($MailboxFilter)
+{
+    $commandHashTable['Filter'] = $MailboxFilter
+}
+
+# Get mailboxes using the parameters defined from the hashtable and throw an error if encountered
+try
+{
+    Write-Verbose 'Getting Mailboxes from Exchange Online'
+    $mailboxes = @(Get-EXOMailbox @commandHashTable | Sort-Object UserPrincipalName )
+}
+catch
+{
+    throw
+}
 $mailboxCount = $mailboxes.Count
-$allSendAsPerms = Get-EXORecipientPermission -ResultSize unlimited | Where-Object {$_.AccessRights -eq "SendAs" -and $_.Trustee -notmatch "SELF"}
+Write-Verbose "There are $mailboxCount number of mailboxes"
+
+if ($mailboxCount -eq 0)
+{
+    throw 'There are no mailboxes found using the supplied filters'
+}
+
+# Get all mailbox SendAs permissions and throw an error if required
+try
+{
+    Write-Verbose 'Getting Mailbox SendAs permissions from Exchange Online'
+    $allSendAsPerms = Get-EXORecipientPermission -ResultSize unlimited | Where-Object { $_.AccessRights -eq 'SendAs' -and $_.Trustee -notmatch 'SELF' }
+}
+catch
+{
+    throw
+}
+
+#  Loop through the list of mailboxes and output the results to the CSV
 $i = 1
-foreach ($mailbox in $mailboxes) {
-    Write-Progress -Id 1 -Activity "EXO Mailbox Permissions Report" -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i*100)/$mailboxCount)
-    if (!($mailbox.IsInactiveMailbox)) {
-        Write-Host "$($i) of $($mailboxCount) --- $($mailbox.UserPrincipalName)" -ForegroundColor Green
-        # Get Full Access Permissions
-        $fullAccessPerms = Get-EXOMailboxPermission $mailbox.Identity | Where-Object {($_.AccessRights -like 'Full*') -and ($_.User -notlike "*SELF*")}
-        if ($fullAccessPerms) {
-            foreach ($faPerm in $fullAccessPerms) {
-                Write-Host "--- " $faPerm.User -ForegroundColor Cyan
-                $faUser = $mailboxes | Where-Object {$_.UserPrincipalName -eq $faPerm.User}
-                if ($faUser) {
-                    if ($faUser.IsInactiveMailbox -eq $true) {
-                        $faPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
+foreach ($mailbox in $mailboxes)
+{
+    Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    if (!($mailbox.IsInactiveMailbox))
+    {
+        try
+        {
+            # Get Full Access Permissions
+            Write-Verbose "Processing FullAccess permissions for $($mailbox.UserPrincipalName)"
+            $fullAccessPerms = Get-EXOMailboxPermission $mailbox.Identity -ErrorAction stop | Where-Object { ($_.AccessRights -like 'Full*') -and ($_.User -notmatch 'SELF') }
+            if ($fullAccessPerms)
+            {
+                foreach ($faPerm in $fullAccessPerms)
+                {
+                    $faUser = $mailboxes | Where-Object { $_.UserPrincipalName -eq $faPerm.User }
+                    if ($faUser)
+                    {
+                        $faPermEntry = [ordered]@{
+                            UserPrincipalName    = $mailbox.UserPrincipalName
+                            DisplayName          = $mailbox.DisplayName
+                            PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
                             RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "FullAccess"
-                            TrusteeUPN = $faUser.UserPrincipalName
-                            TrusteeDisplayName = $faUser.DisplayName
-                            TrusteeStatus = "Inactive"
+                            IsDirSynced          = $mailbox.IsDirSynced
+                            PermissionType       = 'FullAccess'
+                            TrusteeUPN           = $faUser.UserPrincipalName
+                            TrusteeDisplayName   = $faUser.DisplayName
                         }
-                        $output.Add([PSCustomObject]$faPermEntry) | Out-Null
-                    } else {
-                        $faPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
-                            RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "FullAccess"
-                            TrusteeUPN = $faUser.UserPrincipalName
-                            TrusteeDisplayName = $faUser.DisplayName
-                            TrusteeStatus = "Active"
+                        if ($faUser.IsInactiveMailbox -eq $true)
+                        {
+                            $faPermEntry['TrusteeStatus'] = 'Inactive'
+                        }
+                        else
+                        {
+                            $faPermEntry['TrusteeStatus'] = 'Active'
                         }
                         $output.Add([PSCustomObject]$faPermEntry) | Out-Null
                     }
                 }
             }
+            elseif ($IncludeNoPermissions)
+            {
+                $noFAPermEntry = [ordered]@{
+                    UserPrincipalName    = $mailbox.UserPrincipalName
+                    DisplayName          = $mailbox.DisplayName
+                    PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
+                    RecipientTypeDetails = $mailbox.RecipientTypeDetails
+                    IsDirSynced          = $mailbox.IsDirSynced
+                    PermissionType       = 'FullAccess'
+                    TrusteeUPN           = '<none>'
+                    TrusteeDisplayName   = $NULL
+                    TrusteeStatus        = $NULL
+                }
+                $output.Add([PSCustomObject]$noFAPermEntry) | Out-Null
+            }
+        }
+        catch
+        {
+            $faPermEntry = [ordered]@{
+                UserPrincipalName    = $mailbox.UserPrincipalName
+                DisplayName          = $mailbox.DisplayName
+                PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
+                RecipientTypeDetails = $mailbox.RecipientTypeDetails
+                IsDirSynced          = $mailbox.IsDirSynced
+                PermissionType       = 'FullAccess'
+                TrusteeUPN           = 'ERROR RUNNING COMMAND'
+                TrusteeDisplayName   = 'ERROR RUNNING COMMAND'
+                TrusteeStatus        = 'ERROR RUNNING COMMAND'
+            }
+            $output.Add([PSCustomObject]$faPermEntry) | Out-Null
         }
 
         # Get SendAs Permissions
-        $sendAsPerms = $allSendAsPerms | Where-Object {$_.Identity -eq $mailbox.Identity}
-        if ($sendAsPerms) {
-            foreach ($saPerm in $sendAsPerms) {
-                Write-Host "--- " $saPerm.Trustee -ForegroundColor Magenta
-                $saUser = $mailboxes | Where-Object {$_.UserPrincipalName -eq $saPerm.Trustee}
-                if ($saUser) {
-                    if ($saUser.IsInactiveMailbox -eq $TRUE) {
-                        $saPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
-                            RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "SendAs"
-                            TrusteeUPN = $saUser.UserPrincipalName
-                            TrusteeDisplayName = $saUser.DisplayName
-                            TrusteeStatus = "Inactive"
-                        }
-                        $output.Add([PSCustomObject]$saPermEntry) | Out-Null
-                    } else {
-                        $saPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
-                            RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "SendAs"
-                            TrusteeUPN = $saUser.UserPrincipalName
-                            TrusteeDisplayName = $saUser.DisplayName
-                            TrusteeStatus = "Active"
-                        }
-                        $output.Add([PSCustomObject]$saPermEntry) | Out-Null
+        Write-Verbose "Processing SendAs permissions for $($mailbox.UserPrincipalName)"
+        $sendAsPerms = $allSendAsPerms | Where-Object { $_.Identity -eq $mailbox.Identity }
+        if ($sendAsPerms)
+        {
+            foreach ($saPerm in $sendAsPerms)
+            {
+                $saUser = $mailboxes | Where-Object { $_.UserPrincipalName -eq $saPerm.Trustee }
+                if ($saUser)
+                {
+                    $saPermEntry = [ordered]@{
+                        UserPrincipalName    = $mailbox.UserPrincipalName
+                        DisplayName          = $mailbox.DisplayName
+                        PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
+                        RecipientTypeDetails = $mailbox.RecipientTypeDetails
+                        IsDirSynced          = $mailbox.IsDirSynced
+                        PermissionType       = 'SendAs'
+                        TrusteeUPN           = $saUser.UserPrincipalName
+                        TrusteeDisplayName   = $saUser.DisplayName
                     }
+                    if ($saUser.IsInactiveMailbox -eq $true)
+                    {
+                        $saPermEntry['TrusteeStatus'] = 'Inactive'
+                    }
+                    else
+                    {
+                        $saPermEntry['TrusteeStatus'] = 'Active'
+                    }
+                    $output.Add([PSCustomObject]$saPermEntry) | Out-Null
                 }
             }
         }
-        # SendOnBehalf Permissions
-        $sendOnBehalfPerms = $mailbox.GrantSendOnBehalfTo
-        if ($sendOnBehalfPerms) {
-            foreach ($sobPerms in $sendOnBehalfPerms) {
-                Write-Host "--- " $sobPerms -ForegroundColor Yellow
-                $sobUsers = $mailboxes | Where-Object {$_.Name -eq $sobPerms}
-                if ($sobUsers) {
-                    if ($sobUsers.IsInactiveMailbox -eq $TRUE) {
-                        $sobPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
-                            RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "SendOnBehalf"
-                            TrusteeUPN = $sobUsers.UserPrincipalName
-                            TrusteeDisplayName = $sobUsers.DisplayName
-                            TrusteeStatus = "Inactive"
-                        }
-                        $output.Add([PSCustomObject]$sobPermEntry) | Out-Null
-                    } else {
-                        $sobPermEntry = @{
-                            UserPrincipalName = $mailbox.UserPrincipalName
-                            DisplayName = $mailbox.DisplayName
-                            PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
-                            RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                            IsDirSynced = $mailbox.IsDirSynced
-                            PermissionType = "SendOnBehalf"
-                            TrusteeUPN = $sobUsers.UserPrincipalName
-                            TrusteeDisplayName = $sobUsers.DisplayName
-                            TrusteeStatus = "Active"
-                        }
-                        $output.Add([PSCustomObject]$sobPermEntry) | Out-Null
-                    }
-                }
-
-            }
-        }
-        # No Permissions found
-        if (!($output.UserPrincipalName -contains $mailbox.UserPrincipalName)) {
-            Write-Host "--- No permissions found"
-            $noPermEntry = @{
-                UserPrincipalName = $mailbox.UserPrincipalName
-                DisplayName = $mailbox.DisplayName
-                PrimarySmtpAddress = $mailbox.PrimarySmtpAddress
+        elseif ($IncludeNoPermissions)
+        {
+            $noSAPermEntry = [ordered]@{
+                UserPrincipalName    = $mailbox.UserPrincipalName
+                DisplayName          = $mailbox.DisplayName
+                PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
                 RecipientTypeDetails = $mailbox.RecipientTypeDetails
-                IsDirSynced = $mailbox.IsDirSynced
-                PermissionType = "<no permissions found>"
-                TrusteeUPN = $NULL
-                TrusteeDisplayName = $NULL
-                TrusteeStatus = $NULL
+                IsDirSynced          = $mailbox.IsDirSynced
+                PermissionType       = 'SendAs'
+                TrusteeUPN           = '<none>'
+                TrusteeDisplayName   = $NULL
+                TrusteeStatus        = $NULL
             }
-            $output.Add([PSCustomObject]$noPermEntry) | Out-Null
+            $output.Add([PSCustomObject]$noSAPermEntry) | Out-Null
+        }
+
+        # Get SendOnBehalf Permissions
+        Write-Verbose "Processing SendOnBehalfTo permissions for $($mailbox.UserPrincipalName)"
+        $sendOnBehalfPerms = $mailbox.GrantSendOnBehalfTo
+        if ($sendOnBehalfPerms)
+        {
+            foreach ($sobPerms in $sendOnBehalfPerms)
+            {
+                $sobUser = $mailboxes | Where-Object { $_.Name -eq $sobPerms }
+                if ($sobUser)
+                {
+                    $sobPermEntry = [ordered]@{
+                        UserPrincipalName    = $mailbox.UserPrincipalName
+                        DisplayName          = $mailbox.DisplayName
+                        PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
+                        RecipientTypeDetails = $mailbox.RecipientTypeDetails
+                        IsDirSynced          = $mailbox.IsDirSynced
+                        PermissionType       = 'SendOnBehalf'
+                        TrusteeUPN           = $sobUsers.UserPrincipalName
+                        TrusteeDisplayName   = $sobUsers.DisplayName
+                    }
+                    if ($sobUser.IsInactiveMailbox -eq $true)
+                    {
+                        $sobPermEntry['TrusteeStatus'] = 'Inactive'
+                    }
+                    else
+                    {
+                        $sobPermEntry['TrusteeStatus'] = 'Active'
+                    }
+                    $output.Add([PSCustomObject]$sobPermEntry) | Out-Null
+                }
+            }
+        }
+        elseif ($IncludeNoPermissions)
+        {
+            $noSOBPermEntry = [ordered]@{
+                UserPrincipalName    = $mailbox.UserPrincipalName
+                DisplayName          = $mailbox.DisplayName
+                PrimarySmtpAddress   = $mailbox.PrimarySmtpAddress
+                RecipientTypeDetails = $mailbox.RecipientTypeDetails
+                IsDirSynced          = $mailbox.IsDirSynced
+                PermissionType       = 'SendOnBehalf'
+                TrusteeUPN           = '<none>'
+                TrusteeDisplayName   = $NULL
+                TrusteeStatus        = $NULL
+            }
+            $output.Add([PSCustomObject]$noSOBPermEntry) | Out-Null
         }
         $i++
     }
 }
-$output | Select-Object UserPrincipalName,DisplayName,PrimarySmtpAddress,RecipientTypeDetails,IsDirSynced,PermissionType,TrusteeUPN,TrusteeDisplayName | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
-Write-Host "CSV File saved: $outputFile"
+
+# Export to csv
+Write-Progress -Activity 'EXO Mailbox Permissions Report' -Id 1 -Completed
+$output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+
+return "Mailbox permissions have been exported to $outputfile"

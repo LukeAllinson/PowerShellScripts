@@ -2,8 +2,8 @@
 
 <#
 	.SYNOPSIS
-		Name: Get-EXOMailboxSizes.ps1
-		This gathers mailbox size information including primary and archive size and item count.
+		Name: Export-EXOMailboxSizes.ps1
+		This gathers mailbox size information including primary and archive size and item count and exports to a csv file.
 
 	.DESCRIPTION
 		This script connects to EXO and then outputs Mailbox statistics to a CSV file.
@@ -31,6 +31,9 @@
         'EmailAddresses -like "*bruce*"'
         'DisplayName -like "*wayne*"'
         'CustomAttribute1 -eq "InScope"'
+
+    .PARAMETER Filter
+        Alias of MailboxFilter parameter.
 
     .EXAMPLE
         .\Export-EXOMailboxSizes.ps1 C:\Scripts\
@@ -194,7 +197,7 @@ catch
 }
 
 $mailboxCount = $mailboxes.Count
-Write-Verbose "There are $mailboxCount number of mailboxes"
+Write-Verbose "There are $mailboxCount mailboxes"
 
 if ($mailboxCount -eq 0)
 {

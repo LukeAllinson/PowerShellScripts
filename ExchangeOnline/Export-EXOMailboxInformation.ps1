@@ -2,8 +2,8 @@
 
 <#
 	.SYNOPSIS
-		Name: Get-EXOMailboxInformation.ps1
-		This gathers extended mailbox information.
+		Name: Export-EXOMailboxInformation.ps1
+		This gathers extended mailbox information and exports to a csv file.
 
 	.DESCRIPTION
 		This script connects to EXO and then outputs Mailbox information to a CSV file.
@@ -238,7 +238,7 @@ catch
 {
     throw
 }
-Write-Verbose "There are $mailboxCount number of mailboxes"
+Write-Verbose "There are $mailboxCount mailboxes"
 $mailboxCount = $mailboxes.Count
 
 if ($mailboxCount -eq 0)

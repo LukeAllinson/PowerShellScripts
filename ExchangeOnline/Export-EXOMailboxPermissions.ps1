@@ -2,8 +2,8 @@
 
 <#
 	.SYNOPSIS
-		Name: Get-EXOMailboxPermissions.ps1
-		This script enumerates all permissions for every mailbox into a csv
+		Name: Export-EXOMailboxPermissions.ps1
+		This script enumerates all permissions for every mailbox and exports to a csv file.
 
 	.DESCRIPTION
 		This script connects to EXO and then outputs permissions for each mailbox into a CSV
@@ -30,6 +30,9 @@
         'EmailAddresses -like "*bruce*"'
         'DisplayName -like "*wayne*"'
         'CustomAttribute1 -eq "InScope"'
+
+    .PARAMETER Filter
+        Alias of MailboxFilter parameter.
 
     .PARAMETER IncludeNoPermissions
         Includes mailboxes with no permissions in the export; by default only valid permissions are shown in the export.
@@ -137,7 +140,7 @@ catch
     throw
 }
 $mailboxCount = $mailboxes.Count
-Write-Verbose "There are $mailboxCount number of mailboxes"
+Write-Verbose "There are $mailboxCount mailboxes"
 
 if ($mailboxCount -eq 0)
 {

@@ -6,21 +6,58 @@
 		This gathers extended mailbox information.
 
 	.DESCRIPTION
-		This script connects to EXO and then outputs Mailbox information to a CSV file. 
+		This script connects to EXO and then outputs Mailbox information to a CSV file.
 
 	.NOTES
-		Version: 0.2
+		Version: 0.5
+        Updated: 18-10-2021 v0.5    Refactored to simplify
+        Updated: 15-10-2021 v0.4    Added verbose logging
+        Updated: 15-10-2021 v0.3    Refactored to include error handling, filtering parameters and expanded help
         Updated: 14-10-2021 v0.2    Rewritten to improve speed and include error handling
 		Updated: <unknown>	v0.1	Initial draft
 
 		Authors: Luke Allinson, Robin Dadswell
+
+    .PARAMETER OutputPath
+        Full path to the folder where the output will be saved.
+        Can be used without the parameter name in the first position only.
+
+    .PARAMETER IncludeCustomAttributes
+        Include custom and extension attributes; these are not included by default.
+
+    .PARAMETER RecipientTypeDetails
+        Provide one or more RecipientTypeDetails values to return only mailboxes of those types in the results. Seperate multiple values by commas.
+        Valid values are: DiscoveryMailbox, EquipmentMailbox, GroupMailbox, RoomMailbox, SchedulingMailbox, SharedMailbox, TeamMailbox, UserMailbox.
+
+    .PARAMETER MailboxFilter
+        Provide a filter to reduce the size of the Get-EXOMailbox query; this must follow oPath syntax standards.
+        For example:
+        'EmailAddresses -like "*bruce*"'
+        'DisplayName -like "*wayne*"'
+        'CustomAttribute1 -eq "InScope"'
+
+    .PARAMETER Filter
+        Alias of MailboxFilter parameter.
+
+    .EXAMPLE
+        .\Export-EXOMailboxInformation.ps1 C:\Scripts\ -IncludeCustomAttributes
+        Exports all mailbox types including custom and extension attributes
+
+    .EXAMPLE
+        .\Export-EXOMailboxInformation.ps1 -RecipientTypeDetails RoomMailbox,EquipmentMailbox -Output C:\Scripts\
+        Exports only Room and Equipment mailboxes without custom and extension attributes
+
+    .EXAMPLE
+        .\Export-EXOMailboxInformation.ps1 C:\Scripts\ -IncludeCustomAttributes -MailboxFilter 'Department -eq "R&D"'
+        Exports all mailboxes from the R&D department with custom and extension attributes
 #>
 
+[CmdletBinding()]
 param
 (
     [Parameter(
         Mandatory,
-        HelpMessage = "Full path to the folder where the output will be saved."
+        Position=0
     )]
     [ValidateNotNullOrEmpty()]
     [ValidateScript(
@@ -30,30 +67,34 @@ param
             } else {
                 return $true
             }
-        })]
+        }
+    )]
     [IO.DirectoryInfo]
     $OutputPath,
-    [Parameter(
-        HelpMessage = "Do not include custom and extension attributes."
-    )]
+    [Parameter()]
     [switch]
     $IncludeCustomAttributes,
-    [Parameter(
-        HelpMessage = "Use custom mailbox filter."
+    [Parameter()]
+    [ValidateSet(
+        "DiscoveryMailbox",
+        "EquipmentMailbox",
+        "GroupMailbox",
+        "RoomMailbox",
+        "SchedulingMailbox",
+        "SharedMailbox",
+        "TeamMailbox",
+        "UserMailbox"
     )]
+    [string[]]
+    $RecipientTypeDetails,
+    [Parameter()]
+    [Alias("Filter")]
     [string]
-    $MailboxFilter,
-    [Parameter(
-        HelpMessage = "Specify RecipientTypeDetails to filter results."
-    )]
-    [string]
-    $RecipientTypeDetails
+    $MailboxFilter
 )
 
 function Get-MailboxInformation ($mailbox) {
-    # Store everything in an Arraylist
-    $mailboxInfo = [System.Collections.ArrayList]@()
-    $mailboxInfo = @{
+    $mailboxInfo = [ordered]@{
         UserPrincipalName = $mailbox.UserPrincipalName
         Name = $mailbox.Name
         DisplayName = $mailbox.Displayname
@@ -89,6 +130,7 @@ function Get-MailboxInformation ($mailbox) {
         MaxSendSize = $mailbox.MaxSendSize
         MaxReceiveSize = $mailbox.MaxReceiveSize
     }
+
     if ($IncludeCustomAttributes) {
         $mailboxInfo["CustomAttribute1"] = $mailbox.CustomAttribute1
         $mailboxInfo["CustomAttribute2"] = $mailbox.CustomAttribute2
@@ -111,39 +153,151 @@ function Get-MailboxInformation ($mailbox) {
         $mailboxInfo["ExtensionCustomAttribute4"] = $mailbox.ExtensionCustomAttribute4
         $mailboxInfo["ExtensionCustomAttribute5"] = $mailbox.ExtensionCustomAttribute5
     }
-    Return [PSCustomObject]$mailboxInfo
+    return [PSCustomObject]$mailboxInfo
 } #End Function Get-MailboxInformation
 
-# Main Script
-$i = 1
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
-$tenantName = (Get-OrganizationConfig).Name.Split(".")[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxPermissions.csv'
-$output = [System.Collections.ArrayList]@()
+### Main Script
+# Check if there is an active Exchange Online PowerShell session and connect if not
+$PSSessions = Get-PSSession | Select-Object -Property State, Name
+if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0) {
+    Write-Verbose "Not connected to Exchange Online, prompting to connect"
+    Connect-ExchangeOnline
+}
 
-# Build Filters if required
-$filters = $null
-if ($MailboxFilter) {
-    $filters = "-Filter $MailboxFilter"
+# Define constants for use later
+$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+Write-Verbose "Getting Tenant Name for file name from Exchange Online"
+$tenantName = (Get-OrganizationConfig).Name.Split(".")[0]
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxInformation.csv'
+
+Write-Verbose "Checking if $outputFile already exists"
+if (Test-Path $outputFile -ErrorAction SilentlyContinue) {
+    throw "The file $outputFile already exists, please delete the file and try again."
 }
-if ($RecipientTypeDetails) {
-    if ($filters) {
-        $filters += " -RecipientTypeDetails $RecipientTypeDetails"
-    } else {
-        $filters += "-RecipientTypeDetails $RecipientTypeDetails"
-    }
+
+# Define a hashtable for splatting into Get-EXOMailbox
+$commandHashTable = @{
+    ResultSize = "Unlimited"
+    ErrorAction = "Stop"
 }
-if ($filters) {
-    $mailboxes = @(Get-EXOMailbox $filters -Resultsize Unlimited -Properties UserPrincipalName,Name,DisplayName,SimpleDisplayName,PrimarySmtpAddress,Alias,SamAccountName,ExchangeGuid,RecipientTypeDetails,ForwardingAddress,ForwardingSmtpAddress,DeliverToMilboxAndForward,LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,GrantSendOnBehalfTo,HiddenFromAddressListsEnabled,ArchiveStatus,ArchiveName,ArchiveGuid,EmailAddresses,WhenChanged,WhenChangedUTC,WhenMailboxCreated,WhenCreated,WhenCreatedUTC,UMEnabled,ExternalOofOptions,IssueWarningQuota,ProhiitSendQuota,ProhibitSendReceiveQuota,UseDatabaseQuotaDefaults,MaxSendSize,MaxReceiveSize,CustomAttribute1,CustomAttribute2,CustomAttribute3,CustomAttribue4,CustomAttribute5,CustomAttribute6,CustomAttribute7,CustomAttribute8,CustomAttribute9,CustomAttribute10,CustomAttribute11,CustomAttribute12,CustomAttriute13,CustomAttribute14,CustomAttribute15,ExtensionCustomAttribute1,ExtensionCustomAttribute2,ExtensionCustomAttribute3,ExtensionCustomAttribute4,ExtensionCustomAttribute5)
+
+if (!$IncludeCustomAttributes) {
+    $commandHashTable["Properties"] = "UserPrincipalName","Name","DisplayName","SimpleDisplayName","PrimarySmtpAddress","Alias","SamAccountName","ExchangeGuid","RecipientTypeDetails","ForwardingAddress","ForwardingSmtpAddress","DeliverToMailboxAndForward","LitigationHoldEnabled","RetentionHoldEnabled","InPlaceHolds","GrantSendOnBehalfTo","HiddenFromAddressListsEnabled","ArchiveStatus","ArchiveName","ArchiveGuid","EmailAddresses","WhenChanged","WhenChangedUTC","WhenMailboxCreated","WhenCreated","WhenCreatedUTC","UMEnabled","ExternalOofOptions","IssueWarningQuota","ProhibitSendQuota","ProhibitSendReceiveQuota","UseDatabaseQuotaDefaults","MaxSendSize","MaxReceiveSize"
 } else {
-    $mailboxes = @(Get-EXOMailbox -Resultsize Unlimited -Properties UserPrincipalName,Name,DisplayName,SimpleDisplayName,PrimarySmtpAddress,Alias,SamAccountName,ExchangeGuid,RecipientTypeDetails,ForwardingAddress,ForwardingSmtpAddress,DeliverToMilboxAndForward,LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,GrantSendOnBehalfTo,HiddenFromAddressListsEnabled,ArchiveStatus,ArchiveName,ArchiveGuid,EmailAddresses,WhenChanged,WhenChangedUTC,WhenMailboxCreated,WhenCreated,WhenCreatedUTC,UMEnabled,ExternalOofOptions,IssueWarningQuota,ProhiitSendQuota,ProhibitSendReceiveQuota,UseDatabaseQuotaDefaults,MaxSendSize,MaxReceiveSize,CustomAttribute1,CustomAttribute2,CustomAttribute3,CustomAttribue4,CustomAttribute5,CustomAttribute6,CustomAttribute7,CustomAttribute8,CustomAttribute9,CustomAttribute10,CustomAttribute11,CustomAttribute12,CustomAttriute13,CustomAttribute14,CustomAttribute15,ExtensionCustomAttribute1,ExtensionCustomAttribute2,ExtensionCustomAttribute3,ExtensionCustomAttribute4,ExtensionCustomAttribute5)
+    $commandHashTable["Properties"] = "UserPrincipalName","Name","DisplayName","SimpleDisplayName","PrimarySmtpAddress","Alias","SamAccountName","ExchangeGuid","RecipientTypeDetails","ForwardingAddress","ForwardingSmtpAddress","DeliverToMailboxAndForward","LitigationHoldEnabled","RetentionHoldEnabled","InPlaceHolds","GrantSendOnBehalfTo","HiddenFromAddressListsEnabled","ArchiveStatus","ArchiveName","ArchiveGuid","EmailAddresses","WhenChanged","WhenChangedUTC","WhenMailboxCreated","WhenCreated","WhenCreatedUTC","UMEnabled","ExternalOofOptions","IssueWarningQuota","ProhibitSendQuota","ProhibitSendReceiveQuota","UseDatabaseQuotaDefaults","MaxSendSize","MaxReceiveSize","CustomAttribute1","CustomAttribute2","CustomAttribute3","CustomAttribute4","CustomAttribute5","CustomAttribute6","CustomAttribute7","CustomAttribute8","CustomAttribute9","CustomAttribute10","CustomAttribute11","CustomAttribute12","CustomAttribute13","CustomAttribute14","CustomAttribute15","ExtensionCustomAttribute1","ExtensionCustomAttribute2","ExtensionCustomAttribute3","ExtensionCustomAttribute4","ExtensionCustomAttribute5"
 }
+
+if ($RecipientTypeDetails) {
+    $commandHashTable["RecipientTypeDetails"] = $RecipientTypeDetails
+}
+
+if ($MailboxFilter) {
+    $commandHashTable["Filter"] = $MailboxFilter
+}
+
+# Get mailboxes using the parameters defined from the hashtable and throw an error if no results are returned
+try {
+    Write-Verbose "Getting Mailboxes from Exchange Online"
+    $mailboxes = @(Get-EXOMailbox @commandHashTable)
+}
+catch {
+    throw
+}
+
 $mailboxCount = $mailboxes.Count
-$i = 1
-ForEach ($mailbox in $mailboxes) {
-    Write-Progress -Id 1 -Activity "EXO Mailbox Information Report" -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i*100)/$mailboxCount)
-    $mailboxInfo = Get-MailboxInformation $mailbox
-    $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
-    $i++
+
+if ($mailboxCount -eq 0) {
+    throw "There are no mailboxes found using the filters requested."
 }
-$output | Select-Object UserPrincipalName,Name,DisplayName,SimpleDisplayName,PrimarySmtpAddress,Alias,SamAccountName,ExchangeGuid,RecipientTypeDetails,ForwardingAddress,ForwardingSmtpAddress,DeliverToMilboxAndForward,LitigationHoldEnabled,RetentionHoldEnabled,InPlaceHolds,GrantSendOnBehalfTo,HiddenFromAddressListsEnabled,ArchiveStatus,ArchiveName,ArchiveGuid,EmailAddresses,WhenChanged,WhenChangedUTC,WhenMailboxCreated,WhenCreated,WhenCreatedUTC,UMEnabled,ExternalOofOptions,IssueWarningQuota,ProhiitSendQuota,ProhibitSendReceiveQuota,UseDatabaseQuotaDefaults,MaxSendSize,MaxReceiveSize,CustomAttribute1,CustomAttribute2,CustomAttribute3,CustomAttribue4,CustomAttribute5,CustomAttribute6,CustomAttribute7,CustomAttribute8,CustomAttribute9,CustomAttribute10,CustomAttribute11,CustomAttribute12,CustomAttriute13,CustomAttribute14,CustomAttribute15,ExtensionCustomAttribute1,ExtensionCustomAttribute2,ExtensionCustomAttribute3,ExtensionCustomAttribute4,ExtensionCustomAttribute5 | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+
+if (!$IncludeCustomAttributes) {
+    $mailboxes | Select-Object -Property "UserPrincipalName",
+        "Name",
+        "DisplayName",
+        "SimpleDisplayName",
+        "PrimarySmtpAddress",
+        "Alias",
+        "SamAccountName",
+        "RecipientTypeDetails",
+        "ForwardingAddress",
+        "ForwardingSmtpAddress",
+        "DeliverToMailboxAndForward",
+        "LitigationHoldEnabled",
+        "RetentionHoldEnabled",
+        "InPlaceHolds",
+        "GrantSendOnBehalfTo",
+        "HiddenFromAddressListsEnabled",
+        "ExchangeGuid",
+        "ArchiveStatus",
+        "ArchiveName",
+        "ArchiveGuid",
+        @{ Name = 'EmailAddresses'; Expression = { $($_.EmailAddresses -join ";") } },
+        "WhenChanged",
+        "WhenChangedUTC",
+        "WhenMailboxCreated",
+        "WhenCreated",
+        "WhenCreatedUTC",
+        "UMEnabled",
+        "ExternalOofOptions",
+        "IssueWarningQuota",
+        "ProhibitSendQuota",
+        "ProhibitSendReceiveQuota",
+        "MaxSendSize",
+        "MaxReceiveSize" | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+} else {
+    $mailboxes | Select-Object -Property "UserPrincipalName",
+        "Name",
+        "DisplayName",
+        "SimpleDisplayName",
+        "PrimarySmtpAddress",
+        "Alias",
+        "SamAccountName",
+        "RecipientTypeDetails",
+        "ForwardingAddress",
+        "ForwardingSmtpAddress",
+        "DeliverToMailboxAndForward",
+        "LitigationHoldEnabled",
+        "RetentionHoldEnabled",
+        "InPlaceHolds",
+        "GrantSendOnBehalfTo",
+        "HiddenFromAddressListsEnabled",
+        "ExchangeGuid",
+        "ArchiveStatus",
+        "ArchiveName",
+        "ArchiveGuid",
+        @{ Name = 'EmailAddresses'; Expression = { $($_.EmailAddresses -join ";") } },
+        "WhenChanged",
+        "WhenChangedUTC",
+        "WhenMailboxCreated",
+        "WhenCreated",
+        "WhenCreatedUTC",
+        "UMEnabled",
+        "ExternalOofOptions",
+        "IssueWarningQuota",
+        "ProhibitSendQuota",
+        "ProhibitSendReceiveQuota",
+        "MaxSendSize",
+        "MaxReceiveSize",
+        "CustomAttribute1",
+        "CustomAttribute2",
+        "CustomAttribute3",
+        "CustomAttribute4",
+        "CustomAttribute5",
+        "CustomAttribute6",
+        "CustomAttribute7",
+        "CustomAttribute8",
+        "CustomAttribute9",
+        "CustomAttribute10",
+        "CustomAttribute11",
+        "CustomAttribute12",
+        "CustomAttribute13",
+        "CustomAttribute14",
+        "CustomAttribute15",
+        "ExtensionCustomAttribute1",
+        "ExtensionCustomAttribute2",
+        "ExtensionCustomAttribute3",
+        "ExtensionCustomAttribute4",
+        "ExtensionCustomAttribute5" | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+}
+
+return "Mailbox information has been exported to $outputfile"

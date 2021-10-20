@@ -9,10 +9,12 @@
 		This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
 
 	.NOTES
-		Version: 0.1
+		Version: 0.2
+        Updated: 19-10-2021 v0.2    Refactored using current script standards
 		Updated: <unknown>	v0.1	Initial draft
 
-		Authors: Luke Allinson, Robin Dadswell
+		Authors: Luke Allinson (github:LukeAllinson)
+                 Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath
         Full path to the folder where the output will be saved.
@@ -107,6 +109,7 @@ $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXORoomCalendarInformation.csv'
+$output = New-Object System.Collections.Generic.List[System.Object]
 
 Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue)
@@ -141,7 +144,7 @@ $mailboxCount = $mailboxes.Count
 
 if ($mailboxCount -eq 0)
 {
-    throw 'There are no Room mailboxes found using the supplied filters'
+    return 'There are no Room mailboxes found using the supplied filters'
 }
 
 #  Loop through the list of mailboxes and output the results to the CSV

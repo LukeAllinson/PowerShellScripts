@@ -13,7 +13,8 @@
         Updated: 19-10-2021 v0.2    Refactored using current script standards
 		Updated: <unknown>	v0.1	Initial draft
 
-		Authors: Luke Allinson, Robin Dadswell
+		Authors: Luke Allinson (github:LukeAllinson)
+                 Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath
         Full path to the folder where the output will be saved.
@@ -100,7 +101,7 @@ $PSSessions = Get-PSSession | Select-Object -Property State, Name
 if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
-    Connect-ExchangeOnlineget-
+    Connect-ExchangeOnline
 }
 
 # Define constants for use later
@@ -139,7 +140,7 @@ Write-Verbose "There are $publicFolderCount Public Folders"
 
 if ($publicFolderCount -eq 0)
 {
-    throw 'There are no Public Folders found'
+    return 'There are no Public Folders found'
 }
 
 #  Loop through the list of Public Folders and output the results to the CSV

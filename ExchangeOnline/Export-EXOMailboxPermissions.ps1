@@ -14,7 +14,8 @@
         Updated: 14-10-2021 v0.2    Updated to use Rest-based commands where possible
 		Updated: 01-05-2021	v0.1	Initial draft
 
-		Authors: Luke Allinson, Robin Dadswell
+		Authors: Luke Allinson (github:LukeAllinson)
+                 Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath
         Full path to the folder where the output will be saved.
@@ -133,7 +134,7 @@ if ($MailboxFilter)
 try
 {
     Write-Verbose 'Getting Mailboxes from Exchange Online'
-    $mailboxes = @(Get-EXOMailbox @commandHashTable | Sort-Object UserPrincipalName )
+    $mailboxes = @(Get-EXOMailbox @commandHashTable | Sort-Object UserPrincipalName)
 }
 catch
 {
@@ -144,7 +145,7 @@ Write-Verbose "There are $mailboxCount mailboxes"
 
 if ($mailboxCount -eq 0)
 {
-    throw 'There are no mailboxes found using the supplied filters'
+    return 'There are no mailboxes found using the supplied filters'
 }
 
 # Get all mailbox SendAs permissions and throw an error if required

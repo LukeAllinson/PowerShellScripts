@@ -16,7 +16,8 @@
         Updated: 14-10-2021 v0.2    Rewritten to improve speed and include error handling
 		Updated: <unknown>	v0.1	Initial draft
 
-		Authors: Luke Allinson, Robin Dadswell
+		Authors: Luke Allinson (github:LukeAllinson)
+                 Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath
         Full path to the folder where the output will be saved.
@@ -243,7 +244,7 @@ $mailboxCount = $mailboxes.Count
 
 if ($mailboxCount -eq 0)
 {
-    throw 'There are no mailboxes found using the supplied filters'
+    return 'There are no mailboxes found using the supplied filters'
 }
 
 # Select the required properties and export to csv

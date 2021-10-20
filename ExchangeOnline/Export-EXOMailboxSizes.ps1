@@ -9,13 +9,15 @@
 		This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
 	.NOTES
-		Version: 0.4
+		Version: 0.5
+        Updated: 19-10-2021 v0.5    Updated to use Generic List instead of ArrayList
         Updated: 18-10-2021 v0.4    Updated formatting
         Updated: 15-10-2021 v0.3    Refactored for new parameters, error handling and verbose messaging
         Updated: 14-10-2021 v0.2    Rewritten to improve speed, remove superflous information
 		Updated: <unknown>	v0.1	Initial draft
 
-		Authors: Luke Allinson, Robin Dadswell
+		Authors: Luke Allinson (github:LukeAllinson)
+                 Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath
         Full path to the folder where the output will be saved.
@@ -159,14 +161,13 @@ $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxSizes.csv'
+$output = New-Object System.Collections.Generic.List[System.Object]
 
 Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue)
 {
     throw "The file $outputFile already exists, please delete the file and try again."
 }
-
-$output = [System.Collections.ArrayList]@()
 
 # Define a hashtable for splatting into Get-EXOMailbox
 $commandHashTable = @{
@@ -201,7 +202,7 @@ Write-Verbose "There are $mailboxCount mailboxes"
 
 if ($mailboxCount -eq 0)
 {
-    throw 'There are no mailboxes found using the supplied filters'
+    return 'There are no mailboxes found using the supplied filters'
 }
 
 #  Loop through the list of mailboxes and output the results to the CSV

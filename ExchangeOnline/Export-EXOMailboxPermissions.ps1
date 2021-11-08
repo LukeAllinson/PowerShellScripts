@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
 	.NOTES
-		Version: 0.3
+		Version: 0.4
+        Updated: 08-11-2021 v0.4    Updated filename ordering
         Updated: 18-10-2021 v0.3    Refactored to remove unnecessary lines, add error handling and improve formatting
         Updated: 14-10-2021 v0.2    Updated to use Rest-based commands where possible
 		Updated: 01-05-2021	v0.1	Initial draft
@@ -110,7 +111,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 $i = 1
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxPermissions.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxPermissions_' + $tenantName + '_' + $timeStamp + '.csv'
 $output = New-Object System.Collections.Generic.List[System.Object]
 
 # Define a hashtable for splatting into Get-EXOMailbox

@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs Mailbox information to a CSV file.
 
 	.NOTES
-		Version: 0.5
+		Version: 0.6
+        Updated: 08-11-2021 v0.6    Updated filename ordering
         Updated: 18-10-2021 v0.5    Refactored to simplify, improved formatting
         Updated: 15-10-2021 v0.4    Added verbose logging
         Updated: 15-10-2021 v0.3    Refactored to include error handling, filtering parameters and expanded help
@@ -110,7 +111,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxInformation.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar +  'EXOMailboxInformation_' + $tenantName + '_' + $timeStamp + '.csv'
 
 Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue)

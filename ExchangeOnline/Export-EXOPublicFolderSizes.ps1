@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs Public Folder information to a CSV file.
 
 	.NOTES
-		Version: 0.2
+		Version: 0.3
+        Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
 		Updated: <unknown>	v0.1	Initial draft
 
@@ -108,7 +109,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOPublicFolderSizes.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOPublicFolderSizes_' + $tenantName + '_' + $timeStamp + '.csv'
 $output = New-Object System.Collections.Generic.List[System.Object]
 
 Write-Verbose "Checking if $outputFile already exists"

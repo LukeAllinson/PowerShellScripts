@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
 	.NOTES
-		Version: 0.5
+		Version: 0.6
+        Updated: 08-11-2021 v0.6    Fixed an issue where archive stats are not included in output if the first mailbox does not have an archive. Also updated filename ordering.
         Updated: 19-10-2021 v0.5    Updated to use Generic List instead of ArrayList
         Updated: 18-10-2021 v0.4    Updated formatting
         Updated: 15-10-2021 v0.3    Refactored for new parameters, error handling and verbose messaging
@@ -133,6 +134,13 @@ function Get-MailboxInformation ($mailbox)
         $mailboxInfo['DeletedItemCount'] = $primaryStats.DeletedItemCount
         $mailboxInfo['LastLogonTime'] = $primaryStats.LastLogonTime
     }
+    else
+    {
+        $mailboxInfo['TotalItemSize(MB)'] = $null
+        $mailboxInfo['ItemCount'] = $null
+        $mailboxInfo['DeletedItemCount'] = $null
+        $mailboxInfo['LastLogonTime'] = $null
+    }
 
     if ($archiveStats)
     {
@@ -140,6 +148,13 @@ function Get-MailboxInformation ($mailbox)
         $mailboxInfo['Archive_ItemCount'] = $archiveStats.ItemCount
         $mailboxInfo['Archive_DeletedItemCount'] = $archiveStats.DeletedItemCount
         $mailboxInfo['Archive_LastLogonTime'] = $archiveStats.LastLogonTime
+    }
+    else
+    {
+        $mailboxInfo['Archive_TotalItemSize(MB)'] = $null
+        $mailboxInfo['Archive_ItemCount'] = $null
+        $mailboxInfo['Archive_DeletedItemCount'] = $null
+        $mailboxInfo['Archive_LastLogonTime'] = $null
     }
 
     Write-Verbose "Completed gathering mailbox statistics for $($mailbox.PrimarySmtpAddress)"
@@ -160,7 +175,7 @@ $i = 1
 $timeStamp = Get-Date -Format ddMMyyyy-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + $timeStamp + '-' + $tenantName + '-' + 'EXOMailboxSizes.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes_' + $tenantName + '_' + $timeStamp + '.csv'
 $output = New-Object System.Collections.Generic.List[System.Object]
 
 Write-Verbose "Checking if $outputFile already exists"

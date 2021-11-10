@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Mailbox information to a CSV file.
 
     .NOTES
-        Version: 0.7
+        Version: 0.8
+        Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
         Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes
         Updated: 08-11-2021 v0.6    Updated filename ordering
         Updated: 18-10-2021 v0.5    Refactored to simplify, improved formatting
@@ -25,8 +26,11 @@
         Full path to the folder where the output will be saved.
         Can be used without the parameter name in the first position only.
 
+    .PARAMETER InactiveMailboxOnly
+        Only gathers information about inactive mailboxes (active mailboxes are not included in results).
+
     .PARAMETER IncludeInactiveMailboxes
-        Include inactive mailboxes; these are not included by default.
+        Include inactive mailboxes in results; these are not included by default.
     
     .PARAMETER IncludeCustomAttributes
         Include custom and extension attributes; these are not included by default.
@@ -58,12 +62,23 @@
         Exports all mailboxes from the R&D department with custom and extension attributes
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'DefaultParameters')]
 param
 (
     [Parameter(
         Mandatory,
-        Position = 0
+        Position = 0,
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        Mandatory,
+        Position = 0,
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        Mandatory,
+        Position = 0,
+        ParameterSetName = 'IncludeInactive'
     )]
     [ValidateNotNullOrEmpty()]
     [ValidateScript(
@@ -80,13 +95,36 @@ param
     )]
     [IO.DirectoryInfo]
     $OutputPath,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [switch]
     $IncludeCustomAttributes,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [switch]
+    $InactiveMailboxOnly,
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [switch]
     $IncludeInactiveMailboxes,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [ValidateSet(
         'DiscoveryMailbox',
         'EquipmentMailbox',
@@ -99,7 +137,15 @@ param
     )]
     [string[]]
     $RecipientTypeDetails,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [Alias('Filter')]
     [string]
     $MailboxFilter
@@ -130,6 +176,11 @@ if (Test-Path $outputFile -ErrorAction SilentlyContinue)
 $commandHashTable = @{
     ResultSize  = 'Unlimited'
     ErrorAction = 'Stop'
+}
+
+if ($InactiveMailboxOnly)
+{
+    $commandHashTable['InactiveMailboxOnly'] = $true
 }
 
 if ($IncludeInactiveMailboxes)

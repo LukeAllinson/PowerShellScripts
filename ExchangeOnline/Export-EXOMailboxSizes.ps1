@@ -9,9 +9,12 @@
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
     .NOTES
-        Version: 0.7
-        Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes, improved error handling
-        Updated: 08-11-2021 v0.6    Fixed an issue where archive stats are not included in output if the first mailbox does not have an archive. Also updated filename ordering.
+        Version: 0.8
+        Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
+                                    Disabled write-progress if the verbose parameter is used
+        Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes and improved error handling
+        Updated: 08-11-2021 v0.6    Fixed an issue where archive stats are not included in output if the first mailbox does not have an archive
+                                    Updated filename ordering
         Updated: 19-10-2021 v0.5    Updated to use Generic List instead of ArrayList
         Updated: 18-10-2021 v0.4    Updated formatting
         Updated: 15-10-2021 v0.3    Refactored for new parameters, error handling and verbose messaging
@@ -25,8 +28,11 @@
         Full path to the folder where the output will be saved.
         Can be used without the parameter name in the first position only.
 
+    .PARAMETER InactiveMailboxOnly
+        Only gathers information about inactive mailboxes (active mailboxes are not included in results).
+
     .PARAMETER IncludeInactiveMailboxes
-        Include inactive mailboxes; these are not included by default.
+        Include inactive mailboxes in results; these are not included by default.
     
     .PARAMETER RecipientTypeDetails
         Provide one or more RecipientTypeDetails values to return only mailboxes of those types in the results. Seperate multiple values by commas.
@@ -55,12 +61,23 @@
         Exports size information for all mailboxes from the R&D department
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'DefaultParameters')]
 param
 (
     [Parameter(
         Mandatory,
-        Position = 0
+        Position = 0,
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        Mandatory,
+        Position = 0,
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        Mandatory,
+        Position = 0,
+        ParameterSetName = 'IncludeInactive'
     )]
     [ValidateNotNullOrEmpty()]
     [ValidateScript(
@@ -77,10 +94,25 @@ param
     )]
     [IO.DirectoryInfo]
     $OutputPath,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [switch]
+    $InactiveMailboxOnly,
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [switch]
     $IncludeInactiveMailboxes,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [ValidateSet(
         'DiscoveryMailbox',
         'EquipmentMailbox',
@@ -93,7 +125,15 @@ param
     )]
     [string[]]
     $RecipientTypeDetails,
-    [Parameter()]
+    [Parameter(
+        ParameterSetName = 'DefaultParameters'
+    )]
+    [Parameter(
+        ParameterSetName = 'InactiveOnly'
+    )]
+    [Parameter(
+        ParameterSetName = 'IncludeInactive'
+    )]
     [Alias('Filter')]
     [string]
     $MailboxFilter
@@ -245,14 +285,20 @@ if ($mailboxCount -eq 0)
 Write-Verbose 'Beginning loop through all mailboxes'
 foreach ($mailbox in $mailboxes)
 {
-    # TODO - turn off write-progress if verbose is $true
-    Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    {
+        Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    }
+    
     $mailboxInfo = Get-MailboxInformation $mailbox
     $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
     $i++
 }
 
-Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
+if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+{
+    Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
+}
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
 return "Mailbox size data has been exported to $outputfile"

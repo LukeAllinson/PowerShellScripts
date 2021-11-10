@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
     .NOTES
-        Version: 0.4
+        Version: 0.5
+        Updated: 10-11-2021 v0.5    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.4    Updated filename ordering
         Updated: 18-10-2021 v0.3    Refactored to remove unnecessary lines, add error handling and improve formatting
         Updated: 14-10-2021 v0.2    Updated to use Rest-based commands where possible
@@ -164,7 +165,11 @@ catch
 $i = 1
 foreach ($mailbox in $mailboxes)
 {
-    Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    {
+        Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    }
+
     if (!($mailbox.IsInactiveMailbox))
     {
         try
@@ -333,7 +338,11 @@ foreach ($mailbox in $mailboxes)
 }
 
 # Export to csv
-Write-Progress -Activity 'EXO Mailbox Permissions Report' -Id 1 -Completed
+if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+{
+    Write-Progress -Activity 'EXO Mailbox Permissions Report' -Id 1 -Completed
+}
+
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
 return "Mailbox permissions have been exported to $outputfile"

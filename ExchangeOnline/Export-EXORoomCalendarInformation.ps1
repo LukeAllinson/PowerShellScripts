@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
 
     .NOTES
-        Version: 0.3
+        Version: 0.4
+        Updated: 10-11-2021 v0.4    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
         Updated: <unknown>  v0.1    Initial draft
@@ -140,6 +141,7 @@ catch
 {
     throw
 }
+
 Write-Verbose "There are $mailboxCount Room mailboxes"
 $mailboxCount = $mailboxes.Count
 
@@ -152,7 +154,11 @@ if ($mailboxCount -eq 0)
 Write-Verbose 'Beginning loop through all Room mailboxes'
 foreach ($mailbox in $mailboxes)
 {
-    Write-Progress -Id 1 -Activity 'EXO Room Mailbox Calendar Information Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    {
+        Write-Progress -Id 1 -Activity 'EXO Room Mailbox Calendar Information Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+    }
+
     try
     {
         $mailboxInfo = Get-RoomMailboxInformation $mailbox
@@ -168,7 +174,11 @@ foreach ($mailbox in $mailboxes)
     }
 }
 
-Write-Progress -Activity 'EXO Room Mailbox Calendar Information Report' -Id 1 -Completed
+if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+{
+    Write-Progress -Activity 'EXO Room Mailbox Calendar Information Report' -Id 1 -Completed
+}
+
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
 return "Room mailbox information has been exported to $outputfile"

@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Public Folder information to a CSV file.
 
     .NOTES
-        Version: 0.3
+        Version: 0.4
+        Updated: 10-11-2021 v0.4    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
         Updated: <unknown>  v0.1    Initial draft
@@ -148,7 +149,10 @@ if ($publicFolderCount -eq 0)
 Write-Verbose 'Beginning loop through all Public Folders'
 foreach ($publicFolder in $publicFolders)
 {
-    Write-Progress -Id 1 -Activity 'EXO Public Folder Size Report' -Status "Processing $($i) of $($publicFolderCount) Public Folders --- $($publicFolder.Identity)" -PercentComplete (($i * 100) / $publicFolderCount)
+    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    {
+        Write-Progress -Id 1 -Activity 'EXO Public Folder Size Report' -Status "Processing $($i) of $($publicFolderCount) Public Folders --- $($publicFolder.Identity)" -PercentComplete (($i * 100) / $publicFolderCount)
+    }
     try
     {
         $publicFolderInfo = Get-PublicFolderInformation $publicFolder
@@ -164,7 +168,11 @@ foreach ($publicFolder in $publicFolders)
     }
 }
 
-Write-Progress -Activity 'EXO Public Folder Size Report' -Id 1 -Completed
+if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+{
+    Write-Progress -Activity 'EXO Public Folder Size Report' -Id 1 -Completed
+}
+
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
 return "Public Folder information and size data has been exported to $outputfile"

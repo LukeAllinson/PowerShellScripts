@@ -299,6 +299,7 @@ if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
 {
     Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
 }
+
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
 return "Mailbox size data has been exported to $outputfile"

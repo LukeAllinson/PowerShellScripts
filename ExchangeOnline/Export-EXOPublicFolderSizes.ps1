@@ -153,6 +153,7 @@ foreach ($publicFolder in $publicFolders)
     {
         Write-Progress -Id 1 -Activity 'EXO Public Folder Size Report' -Status "Processing $($i) of $($publicFolderCount) Public Folders --- $($publicFolder.Identity)" -PercentComplete (($i * 100) / $publicFolderCount)
     }
+
     try
     {
         $publicFolderInfo = Get-PublicFolderInformation $publicFolder

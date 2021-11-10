@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs Mailbox information to a CSV file.
 
 	.NOTES
-		Version: 0.6
+		Version: 0.7
+        Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes
         Updated: 08-11-2021 v0.6    Updated filename ordering
         Updated: 18-10-2021 v0.5    Refactored to simplify, improved formatting
         Updated: 15-10-2021 v0.4    Added verbose logging
@@ -24,6 +25,9 @@
         Full path to the folder where the output will be saved.
         Can be used without the parameter name in the first position only.
 
+    .PARAMETER IncludeInactiveMailboxes
+        Include inactive mailboxes; these are not included by default.
+    
     .PARAMETER IncludeCustomAttributes
         Include custom and extension attributes; these are not included by default.
 
@@ -80,6 +84,9 @@ param
     [switch]
     $IncludeCustomAttributes,
     [Parameter()]
+    [switch]
+    $IncludeInactiveMailboxes,
+    [Parameter()]
     [ValidateSet(
         'DiscoveryMailbox',
         'EquipmentMailbox',
@@ -125,6 +132,11 @@ $commandHashTable = @{
     ErrorAction = 'Stop'
 }
 
+if ($IncludeInactiveMailboxes)
+{
+    $commandHashTable['IncludeInactiveMailbox'] = $true
+}
+
 if (!$IncludeCustomAttributes)
 {
     $commandHashTable['Properties'] = 'UserPrincipalName',
@@ -142,6 +154,8 @@ if (!$IncludeCustomAttributes)
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'IsInactiveMailbox',
+    'InactiveMailboxRetireTime',
     'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
     'ArchiveStatus',
@@ -179,6 +193,8 @@ else
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'IsInactiveMailbox',
+    'InactiveMailboxRetireTime',
     'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
     'ArchiveStatus',
@@ -265,6 +281,8 @@ if (!$IncludeCustomAttributes)
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'IsInactiveMailbox',
+    'InactiveMailboxRetireTime',
     'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
     'ExchangeGuid',
@@ -301,6 +319,8 @@ else
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'IsInactiveMailbox',
+    'InactiveMailboxRetireTime',
     'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
     'ExchangeGuid',

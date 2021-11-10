@@ -9,7 +9,8 @@
 		This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
 	.NOTES
-		Version: 0.6
+		Version: 0.7
+        Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes, improved error handling
         Updated: 08-11-2021 v0.6    Fixed an issue where archive stats are not included in output if the first mailbox does not have an archive. Also updated filename ordering.
         Updated: 19-10-2021 v0.5    Updated to use Generic List instead of ArrayList
         Updated: 18-10-2021 v0.4    Updated formatting
@@ -24,6 +25,9 @@
         Full path to the folder where the output will be saved.
         Can be used without the parameter name in the first position only.
 
+    .PARAMETER IncludeInactiveMailboxes
+        Include inactive mailboxes; these are not included by default.
+    
     .PARAMETER RecipientTypeDetails
         Provide one or more RecipientTypeDetails values to return only mailboxes of those types in the results. Seperate multiple values by commas.
         Valid values are: DiscoveryMailbox, EquipmentMailbox, GroupMailbox, RoomMailbox, SchedulingMailbox, SharedMailbox, TeamMailbox, UserMailbox.
@@ -74,6 +78,9 @@ param
     [IO.DirectoryInfo]
     $OutputPath,
     [Parameter()]
+    [switch]
+    $IncludeInactiveMailboxes,
+    [Parameter()]
     [ValidateSet(
         'DiscoveryMailbox',
         'EquipmentMailbox',
@@ -95,25 +102,33 @@ param
 function Get-MailboxInformation ($mailbox)
 {
     # Get Mailbox Statistics
+    Write-Verbose "Getting mailbox statistics for $($mailbox.PrimarySmtpAddress)"
     try
     {
-        Write-Verbose "Getting mailbox statistics for $($mailbox.PrimarySmtpAddress)"
-        $primaryStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -Properties LastLogonTime -WarningAction SilentlyContinue -ErrorAction Stop
+        $primaryStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -IncludeSoftDeletedRecipients -Properties LastLogonTime -WarningAction SilentlyContinue -ErrorAction Stop
+        $primaryTotalItemSizeMB = $primaryStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
     }
     catch
     {
-        throw
+        Write-Error -Message "Error getting mailbox statistics for $($mailbox.PrimarySmtpAddress)" -ErrorAction Continue
     }
-
-    $primaryTotalItemSizeMB = $primaryStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
 
     # If an Archive exists, then get Statistics
     if ($mailbox.ArchiveStatus -ne 'None')
     {
         Write-Verbose "Getting archive mailbox statistics for $($mailbox.PrimarySmtpAddress)"
-        $archiveStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -Properties LastLogonTime -Archive -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-        $archiveTotalItemSizeMB = $archiveStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
+        try
+        {
+            $archiveStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -IncludeSoftDeletedRecipients -Properties LastLogonTime -Archive -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+            $archiveTotalItemSizeMB = $archiveStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
+        }
+        catch
+        {
+            Write-Error -Message "Error getting archive mailbox statistics for $($mailbox.PrimarySmtpAddress)" -ErrorAction Continue
+            
+        }
     }
+
     # Store everything in an Arraylist
     $mailboxInfo = [ordered]@{
         UserPrincipalName     = $mailbox.UserPrincipalName
@@ -121,9 +136,10 @@ function Get-MailboxInformation ($mailbox)
         PrimarySmtpAddress    = $mailbox.PrimarySmtpAddress
         Alias                 = $mailbox.Alias
         RecipientTypeDetails  = $mailbox.RecipientTypeDetails
+        IsInactiveMailbox     = $mailbox.IsInactiveMailbox
         LitigationHoldEnabled = $mailbox.LitigationHoldEnabled
         RetentionHoldEnabled  = $mailbox.RetentionHoldEnabled
-        InPlaceHolds          = $mailbox.InPlaceHolds
+        InPlaceHolds          = $mailbox.InPlaceHolds -join ";"
         ArchiveStatus         = $mailbox.ArchiveStatus
     }
 
@@ -186,9 +202,14 @@ if (Test-Path $outputFile -ErrorAction SilentlyContinue)
 
 # Define a hashtable for splatting into Get-EXOMailbox
 $commandHashTable = @{
-    Properties  = 'LitigationHoldEnabled', 'RetentionHoldEnabled', 'InPlaceHolds', 'ArchiveStatus'
+    Properties  = 'LitigationHoldEnabled', 'RetentionHoldEnabled', 'InPlaceHolds', 'ArchiveStatus', 'IsInactiveMailbox'
     ResultSize  = 'Unlimited'
     ErrorAction = 'Stop'
+}
+
+if ($IncludeInactiveMailboxes)
+{
+    $commandHashTable['IncludeInactiveMailbox'] = $true
 }
 
 if ($RecipientTypeDetails)
@@ -224,20 +245,11 @@ if ($mailboxCount -eq 0)
 Write-Verbose 'Beginning loop through all mailboxes'
 foreach ($mailbox in $mailboxes)
 {
+    # TODO - turn off write-progress if verbose is $true
     Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
-    try
-    {
-        $mailboxInfo = Get-MailboxInformation $mailbox
-        $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
-    }
-    catch
-    {
-        continue
-    }
-    finally
-    {
-        $i++
-    }
+    $mailboxInfo = Get-MailboxInformation $mailbox
+    $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
+    $i++
 }
 
 Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed

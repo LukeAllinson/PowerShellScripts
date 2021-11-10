@@ -307,6 +307,7 @@ catch
 {
     throw
 }
+
 Write-Verbose "There are $mailboxCount mailboxes"
 $mailboxCount = $mailboxes.Count
 

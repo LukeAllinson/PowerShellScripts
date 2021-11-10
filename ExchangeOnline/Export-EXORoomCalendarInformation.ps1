@@ -1,20 +1,20 @@
 #Requires -Version 5 -Modules ExchangeOnlineManagement
 
 <#
-	.SYNOPSIS
-		Name: Export-EXORoomCalendarInformation.ps1
-		This gathers Room mailbox calendar processing information and exports to a csv file.
+    .SYNOPSIS
+        Name: Export-EXORoomCalendarInformation.ps1
+        This gathers Room mailbox calendar processing information and exports to a csv file.
 
-	.DESCRIPTION
-		This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
+    .DESCRIPTION
+        This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
 
-	.NOTES
-		Version: 0.3
+    .NOTES
+        Version: 0.3
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
-		Updated: <unknown>	v0.1	Initial draft
+        Updated: <unknown>  v0.1    Initial draft
 
-		Authors: Luke Allinson (github:LukeAllinson)
+        Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath

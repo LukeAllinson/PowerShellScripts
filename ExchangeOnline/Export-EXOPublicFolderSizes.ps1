@@ -1,20 +1,20 @@
 #Requires -Version 5 -Modules ExchangeOnlineManagement
 
 <#
-	.SYNOPSIS
-		Name: Export-EXOPublicFolderSizes.ps1
-		This gathers Public Folder information and sizes and exports to a csv file.
+    .SYNOPSIS
+        Name: Export-EXOPublicFolderSizes.ps1
+        This gathers Public Folder information and sizes and exports to a csv file.
 
-	.DESCRIPTION
-		This script connects to EXO and then outputs Public Folder information to a CSV file.
+    .DESCRIPTION
+        This script connects to EXO and then outputs Public Folder information to a CSV file.
 
-	.NOTES
-		Version: 0.3
+    .NOTES
+        Version: 0.3
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
-		Updated: <unknown>	v0.1	Initial draft
+        Updated: <unknown>  v0.1    Initial draft
 
-		Authors: Luke Allinson (github:LukeAllinson)
+        Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath

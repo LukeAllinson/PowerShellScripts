@@ -1,24 +1,24 @@
 ﻿#Requires -Version 5 -Modules ExchangeOnlineManagement
 
 <#
-	.SYNOPSIS
-		Name: Export-EXOMailboxInformation.ps1
-		This gathers extended mailbox information and exports to a csv file.
+    .SYNOPSIS
+        Name: Export-EXOMailboxInformation.ps1
+        This gathers extended mailbox information and exports to a csv file.
 
-	.DESCRIPTION
-		This script connects to EXO and then outputs Mailbox information to a CSV file.
+    .DESCRIPTION
+        This script connects to EXO and then outputs Mailbox information to a CSV file.
 
-	.NOTES
-		Version: 0.7
+    .NOTES
+        Version: 0.7
         Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes
         Updated: 08-11-2021 v0.6    Updated filename ordering
         Updated: 18-10-2021 v0.5    Refactored to simplify, improved formatting
         Updated: 15-10-2021 v0.4    Added verbose logging
         Updated: 15-10-2021 v0.3    Refactored to include error handling, filtering parameters and expanded help
         Updated: 14-10-2021 v0.2    Rewritten to improve speed and include error handling
-		Updated: <unknown>	v0.1	Initial draft
+        Updated: <unknown>  v0.1    Initial draft
 
-		Authors: Luke Allinson (github:LukeAllinson)
+        Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath

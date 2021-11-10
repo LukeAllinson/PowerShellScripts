@@ -1,24 +1,24 @@
 ﻿#Requires -Version 5 -Modules ExchangeOnlineManagement
 
 <#
-	.SYNOPSIS
-		Name: Export-EXOMailboxSizes.ps1
-		This gathers mailbox size information including primary and archive size and item count and exports to a csv file.
+    .SYNOPSIS
+        Name: Export-EXOMailboxSizes.ps1
+        This gathers mailbox size information including primary and archive size and item count and exports to a csv file.
 
-	.DESCRIPTION
-		This script connects to EXO and then outputs Mailbox statistics to a CSV file.
+    .DESCRIPTION
+        This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
-	.NOTES
-		Version: 0.7
+    .NOTES
+        Version: 0.7
         Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes, improved error handling
         Updated: 08-11-2021 v0.6    Fixed an issue where archive stats are not included in output if the first mailbox does not have an archive. Also updated filename ordering.
         Updated: 19-10-2021 v0.5    Updated to use Generic List instead of ArrayList
         Updated: 18-10-2021 v0.4    Updated formatting
         Updated: 15-10-2021 v0.3    Refactored for new parameters, error handling and verbose messaging
         Updated: 14-10-2021 v0.2    Rewritten to improve speed, remove superflous information
-		Updated: <unknown>	v0.1	Initial draft
+        Updated: <unknown>  v0.1    Initial draft
 
-		Authors: Luke Allinson (github:LukeAllinson)
+        Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath

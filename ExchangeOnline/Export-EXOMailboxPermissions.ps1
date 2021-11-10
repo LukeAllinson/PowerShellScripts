@@ -1,21 +1,21 @@
 #Requires -Version 5 -Modules ExchangeOnlineManagement
 
 <#
-	.SYNOPSIS
-		Name: Export-EXOMailboxPermissions.ps1
-		This script enumerates all permissions for every mailbox and exports to a csv file.
+    .SYNOPSIS
+        Name: Export-EXOMailboxPermissions.ps1
+        This script enumerates all permissions for every mailbox and exports to a csv file.
 
-	.DESCRIPTION
-		This script connects to EXO and then outputs permissions for each mailbox into a CSV
+    .DESCRIPTION
+        This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
-	.NOTES
-		Version: 0.4
+    .NOTES
+        Version: 0.4
         Updated: 08-11-2021 v0.4    Updated filename ordering
         Updated: 18-10-2021 v0.3    Refactored to remove unnecessary lines, add error handling and improve formatting
         Updated: 14-10-2021 v0.2    Updated to use Rest-based commands where possible
-		Updated: 01-05-2021	v0.1	Initial draft
+        Updated: 01-05-2021 v0.1    Initial draft
 
-		Authors: Luke Allinson (github:LukeAllinson)
+        Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER OutputPath

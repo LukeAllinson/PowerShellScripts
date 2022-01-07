@@ -9,7 +9,10 @@
         This script connects to EXO and then outputs Mailbox information to a CSV file.
 
     .NOTES
-        Version: 0.8
+        Version: 0.9
+        TODO: Add location information --- Added usage location but nothing else really available
+        Updated: 06-01-2022 v0.9    Added CAS Mailbox information
+                                    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
         Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes
         Updated: 08-11-2021 v0.6    Updated filename ordering
@@ -31,7 +34,7 @@
 
     .PARAMETER IncludeInactiveMailboxes
         Include inactive mailboxes in results; these are not included by default.
-    
+
     .PARAMETER IncludeCustomAttributes
         Include custom and extension attributes; these are not included by default.
 
@@ -151,6 +154,21 @@ param
     $MailboxFilter
 )
 
+function Get-ExoCasMailboxInfo
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [System.Guid]
+        $Guid,
+        [Parameter(Mandatory)]
+        [array]
+        $CasMailboxes
+    )
+
+    return $CasMailboxes.where({ $_.Guid -eq $Guid })
+}
+
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
 $PSSessions = Get-PSSession | Select-Object -Property State, Name
@@ -161,10 +179,10 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 }
 
 # Define constants for use later
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar +  'EXOMailboxInformation_' + $tenantName + '_' + $timeStamp + '.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxInformation_' + $tenantName + '_' + $timeStamp + '.csv'
 
 Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue)
@@ -198,6 +216,7 @@ if (!$IncludeCustomAttributes)
     'Alias',
     'SamAccountName',
     'ExchangeGuid',
+    'Guid',
     'RecipientTypeDetails',
     'ForwardingAddress',
     'ForwardingSmtpAddress',
@@ -205,48 +224,9 @@ if (!$IncludeCustomAttributes)
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'RetentionPolicy',
     'IsInactiveMailbox',
     'InactiveMailboxRetireTime',
-    'GrantSendOnBehalfTo',
-    'HiddenFromAddressListsEnabled',
-    'ArchiveStatus',
-    'ArchiveName',
-    'ArchiveGuid',
-    'EmailAddresses',
-    'WhenChanged',
-    'WhenChangedUTC',
-    'WhenMailboxCreated',
-    'WhenCreated',
-    'WhenCreatedUTC',
-    'UMEnabled',
-    'ExternalOofOptions',
-    'IssueWarningQuota',
-    'ProhibitSendQuota',
-    'ProhibitSendReceiveQuota',
-    'UseDatabaseQuotaDefaults',
-    'MaxSendSize',
-    'MaxReceiveSize'
-}
-else
-{
-    $commandHashTable['Properties'] = 'UserPrincipalName',
-    'Name',
-    'DisplayName',
-    'SimpleDisplayName',
-    'PrimarySmtpAddress',
-    'Alias',
-    'SamAccountName',
-    'ExchangeGuid',
-    'RecipientTypeDetails',
-    'ForwardingAddress',
-    'ForwardingSmtpAddress',
-    'DeliverToMailboxAndForward',
-    'LitigationHoldEnabled',
-    'RetentionHoldEnabled',
-    'InPlaceHolds',
-    'IsInactiveMailbox',
-    'InactiveMailboxRetireTime',
-    'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
     'ArchiveStatus',
     'ArchiveName',
@@ -265,6 +245,48 @@ else
     'UseDatabaseQuotaDefaults',
     'MaxSendSize',
     'MaxReceiveSize',
+    'UsageLocation'
+}
+else
+{
+    $commandHashTable['Properties'] = 'UserPrincipalName',
+    'Name',
+    'DisplayName',
+    'SimpleDisplayName',
+    'PrimarySmtpAddress',
+    'Alias',
+    'SamAccountName',
+    'ExchangeGuid',
+    'Guid',
+    'RecipientTypeDetails',
+    'ForwardingAddress',
+    'ForwardingSmtpAddress',
+    'DeliverToMailboxAndForward',
+    'LitigationHoldEnabled',
+    'RetentionHoldEnabled',
+    'InPlaceHolds',
+    'RetentionPolicy',
+    'IsInactiveMailbox',
+    'InactiveMailboxRetireTime',
+    'HiddenFromAddressListsEnabled',
+    'ArchiveStatus',
+    'ArchiveName',
+    'ArchiveGuid',
+    'EmailAddresses',
+    'WhenChanged',
+    'WhenChangedUTC',
+    'WhenMailboxCreated',
+    'WhenCreated',
+    'WhenCreatedUTC',
+    'UMEnabled',
+    'ExternalOofOptions',
+    'IssueWarningQuota',
+    'ProhibitSendQuota',
+    'ProhibitSendReceiveQuota',
+    'UseDatabaseQuotaDefaults',
+    'MaxSendSize',
+    'MaxReceiveSize',
+    'UsageLocation',
     'CustomAttribute1',
     'CustomAttribute2',
     'CustomAttribute3',
@@ -316,7 +338,72 @@ if ($mailboxCount -eq 0)
     return 'There are no mailboxes found using the supplied filters'
 }
 
+$casCommandHashTable = @{
+    ResultSize  = 'Unlimited'
+    ErrorAction = 'Stop'
+    Properties  = 'Guid',
+    'UniversalOutlookEnabled',
+    'OutlookMobileEnabled',
+    'MacOutlookEnabled',
+    'ECPEnabled',
+    'OWAforDevicesEnabled',
+    'ShowGalAsDefaultView',
+    'SmtpClientAuthenticationDisabled',
+    'OWAEnabled',
+    'PublicFolderClientAccess',
+    'OwaMailboxPolicy',
+    'ImapEnabled',
+    'ImapSuppressReadReceipt',
+    'ImapEnableExactRFC822Size',
+    'ImapMessagesRetrievalMimeFormat',
+    'ImapUseProtocolDefaults',
+    'ImapForceICalForCalendarRetrievalOption',
+    'PopEnabled',
+    'PopSuppressReadReceipt',
+    'PopEnableExactRFC822Size',
+    'PopMessagesRetrievalMimeFormat',
+    'PopUseProtocolDefaults',
+    'PopMessageDeleteEnabled',
+    'PopForceICalForCalendarRetrievalOption',
+    'MAPIEnabled',
+    'MAPIBlockOutlookVersions',
+    'MAPIBlockOutlookRpcHttp',
+    'MapiHttpEnabled',
+    'MAPIBlockOutlookNonCachedMode',
+    'MAPIBlockOutlookExternalConnectivity',
+    'EwsEnabled',
+    'EwsAllowOutlook',
+    'EwsAllowMacOutlook',
+    'EwsAllowEntourage',
+    'EwsApplicationAccessPolicy',
+    'EwsAllowList',
+    'EwsBlockList',
+    'ActiveSyncAllowedDeviceIDs',
+    'ActiveSyncBlockedDeviceIDs',
+    'ActiveSyncEnabled',
+    'ActiveSyncSuppressReadReceipt',
+    'ActiveSyncMailboxPolicyIsDefaulted',
+    'ActiveSyncMailboxPolicy',
+    'HasActiveSyncDevicePartnership'
+}
+
+if ($MailboxFilter)
+{
+    $casCommandHashTable['Filter'] = $MailboxFilter
+}
+
+try
+{
+    Write-Verbose 'Getting CAS Mailboxes from Exchange Online'
+    $casMailboxes = @(Get-EXOCasMailbox @casCommandHashTable)
+}
+catch
+{
+    throw
+}
+
 # Select the required properties and export to csv
+Write-Verbose 'Processing data'
 if (!$IncludeCustomAttributes)
 {
     $mailboxes | Select-Object -Property 'UserPrincipalName',
@@ -333,10 +420,12 @@ if (!$IncludeCustomAttributes)
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'RetentionPolicy',
     'IsInactiveMailbox',
     'InactiveMailboxRetireTime',
-    'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
+    'UsageLocation',
+    'Guid',
     'ExchangeGuid',
     'ArchiveStatus',
     'ArchiveName',
@@ -353,7 +442,52 @@ if (!$IncludeCustomAttributes)
     'ProhibitSendQuota',
     'ProhibitSendReceiveQuota',
     'MaxSendSize',
-    'MaxReceiveSize' | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+    'MaxReceiveSize',
+    @{ Name = 'UniversalOutlookEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).UniversalOutlookEnabled) } },
+    @{ Name = 'OutlookMobileEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OutlookMobileEnabled) } },
+    @{ Name = 'MacOutlookEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MacOutlookEnabled) } },
+    @{ Name = 'ECPEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ECPEnabled) } },
+    @{ Name = 'OWAforDevicesEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OWAforDevicesEnabled) } },
+    @{ Name = 'ShowGalAsDefaultView'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ShowGalAsDefaultView) } },
+    @{ Name = 'SmtpClientAuthenticationDisabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).SmtpClientAuthenticationDisabled) } },
+    @{ Name = 'OWAEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OWAEnabled) } },
+    @{ Name = 'PublicFolderClientAccess'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PublicFolderClientAccess) } },
+    @{ Name = 'OwaMailboxPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OwaMailboxPolicy) } },
+    @{ Name = 'IsOptimizedForAccessibility'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).IsOptimizedForAccessibility) } },
+    @{ Name = 'ImapEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapEnabled) } },
+    @{ Name = 'ImapSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapSuppressReadReceipt) } },
+    @{ Name = 'ImapEnableExactRFC822Size'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapEnableExactRFC822Size) } },
+    @{ Name = 'ImapMessagesRetrievalMimeFormat'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapMessagesRetrievalMimeFormat) } },
+    @{ Name = 'ImapUseProtocolDefaults'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapUseProtocolDefaults) } },
+    @{ Name = 'ImapForceICalForCalendarRetrievalOption'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapForceICalForCalendarRetrievalOption) } },
+    @{ Name = 'PopEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopEnabled) } },
+    @{ Name = 'PopSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopSuppressReadReceipt) } },
+    @{ Name = 'PopEnableExactRFC822Size'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopEnableExactRFC822Size) } },
+    @{ Name = 'PopMessagesRetrievalMimeFormat'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopMessagesRetrievalMimeFormat) } },
+    @{ Name = 'PopUseProtocolDefaults'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopUseProtocolDefaults) } },
+    @{ Name = 'PopMessageDeleteEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopMessageDeleteEnabled) } },
+    @{ Name = 'PopForceICalForCalendarRetrievalOption'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopForceICalForCalendarRetrievalOption) } },
+    @{ Name = 'MAPIEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIEnabled) } },
+    @{ Name = 'MAPIBlockOutlookVersions'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookVersions) } },
+    @{ Name = 'MAPIBlockOutlookRpcHttp'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookRpcHttp) } },
+    @{ Name = 'MapiHttpEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MapiHttpEnabled) } },
+    @{ Name = 'MAPIBlockOutlookNonCachedMode'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookNonCachedMode) } },
+    @{ Name = 'MAPIBlockOutlookExternalConnectivity'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookExternalConnectivity) } },
+    @{ Name = 'EwsEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsEnabled) } },
+    @{ Name = 'EwsAllowOutlook'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowOutlook) } },
+    @{ Name = 'EwsAllowMacOutlook'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowMacOutlook) } },
+    @{ Name = 'EwsAllowEntourage'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowEntourage) } },
+    @{ Name = 'EwsApplicationAccessPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsApplicationAccessPolicy) } },
+    @{ Name = 'EwsAllowList'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowList) } },
+    @{ Name = 'EwsBlockList'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsBlockList) } },
+    @{ Name = 'ActiveSyncAllowedDeviceIDs'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncAllowedDeviceIDs) } },
+    @{ Name = 'ActiveSyncBlockedDeviceIDs'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncBlockedDeviceIDs) } },
+    @{ Name = 'ActiveSyncEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncEnabled) } },
+    @{ Name = 'ActiveSyncSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncSuppressReadReceipt) } },
+    @{ Name = 'ActiveSyncMailboxPolicyIsDefaulted'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncMailboxPolicyIsDefaulted) } },
+    @{ Name = 'ActiveSyncMailboxPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncMailboxPolicy) } },
+    @{ Name = 'HasActiveSyncDevicePartnership'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).HasActiveSyncDevicePartnership) } },
+    @{ Name = 'ActiveSyncDebugLogging'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncDebugLogging) } } | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 }
 else
 {
@@ -371,10 +505,12 @@ else
     'LitigationHoldEnabled',
     'RetentionHoldEnabled',
     'InPlaceHolds',
+    'RetentionPolicy',
     'IsInactiveMailbox',
     'InactiveMailboxRetireTime',
-    'GrantSendOnBehalfTo',
     'HiddenFromAddressListsEnabled',
+    'UsageLocation',
+    'Guid',
     'ExchangeGuid',
     'ArchiveStatus',
     'ArchiveName',
@@ -411,7 +547,52 @@ else
     'ExtensionCustomAttribute2',
     'ExtensionCustomAttribute3',
     'ExtensionCustomAttribute4',
-    'ExtensionCustomAttribute5' | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+    'ExtensionCustomAttribute5',
+    @{ Name = 'UniversalOutlookEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).UniversalOutlookEnabled) } },
+    @{ Name = 'OutlookMobileEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OutlookMobileEnabled) } },
+    @{ Name = 'MacOutlookEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MacOutlookEnabled) } },
+    @{ Name = 'ECPEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ECPEnabled) } },
+    @{ Name = 'OWAforDevicesEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OWAforDevicesEnabled) } },
+    @{ Name = 'ShowGalAsDefaultView'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ShowGalAsDefaultView) } },
+    @{ Name = 'SmtpClientAuthenticationDisabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).SmtpClientAuthenticationDisabled) } },
+    @{ Name = 'OWAEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OWAEnabled) } },
+    @{ Name = 'PublicFolderClientAccess'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PublicFolderClientAccess) } },
+    @{ Name = 'OwaMailboxPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).OwaMailboxPolicy) } },
+    @{ Name = 'IsOptimizedForAccessibility'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).IsOptimizedForAccessibility) } },
+    @{ Name = 'ImapEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapEnabled) } },
+    @{ Name = 'ImapSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapSuppressReadReceipt) } },
+    @{ Name = 'ImapEnableExactRFC822Size'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapEnableExactRFC822Size) } },
+    @{ Name = 'ImapMessagesRetrievalMimeFormat'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapMessagesRetrievalMimeFormat) } },
+    @{ Name = 'ImapUseProtocolDefaults'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapUseProtocolDefaults) } },
+    @{ Name = 'ImapForceICalForCalendarRetrievalOption'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ImapForceICalForCalendarRetrievalOption) } },
+    @{ Name = 'PopEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopEnabled) } },
+    @{ Name = 'PopSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopSuppressReadReceipt) } },
+    @{ Name = 'PopEnableExactRFC822Size'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopEnableExactRFC822Size) } },
+    @{ Name = 'PopMessagesRetrievalMimeFormat'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopMessagesRetrievalMimeFormat) } },
+    @{ Name = 'PopUseProtocolDefaults'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopUseProtocolDefaults) } },
+    @{ Name = 'PopMessageDeleteEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopMessageDeleteEnabled) } },
+    @{ Name = 'PopForceICalForCalendarRetrievalOption'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).PopForceICalForCalendarRetrievalOption) } },
+    @{ Name = 'MAPIEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIEnabled) } },
+    @{ Name = 'MAPIBlockOutlookVersions'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookVersions) } },
+    @{ Name = 'MAPIBlockOutlookRpcHttp'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookRpcHttp) } },
+    @{ Name = 'MapiHttpEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MapiHttpEnabled) } },
+    @{ Name = 'MAPIBlockOutlookNonCachedMode'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookNonCachedMode) } },
+    @{ Name = 'MAPIBlockOutlookExternalConnectivity'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).MAPIBlockOutlookExternalConnectivity) } },
+    @{ Name = 'EwsEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsEnabled) } },
+    @{ Name = 'EwsAllowOutlook'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowOutlook) } },
+    @{ Name = 'EwsAllowMacOutlook'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowMacOutlook) } },
+    @{ Name = 'EwsAllowEntourage'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowEntourage) } },
+    @{ Name = 'EwsApplicationAccessPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsApplicationAccessPolicy) } },
+    @{ Name = 'EwsAllowList'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsAllowList) } },
+    @{ Name = 'EwsBlockList'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).EwsBlockList) } },
+    @{ Name = 'ActiveSyncAllowedDeviceIDs'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncAllowedDeviceIDs) } },
+    @{ Name = 'ActiveSyncBlockedDeviceIDs'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncBlockedDeviceIDs) } },
+    @{ Name = 'ActiveSyncEnabled'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncEnabled) } },
+    @{ Name = 'ActiveSyncSuppressReadReceipt'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncSuppressReadReceipt) } },
+    @{ Name = 'ActiveSyncMailboxPolicyIsDefaulted'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncMailboxPolicyIsDefaulted) } },
+    @{ Name = 'ActiveSyncMailboxPolicy'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncMailboxPolicy) } },
+    @{ Name = 'HasActiveSyncDevicePartnership'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).HasActiveSyncDevicePartnership) } },
+    @{ Name = 'ActiveSyncDebugLogging'; Expression = { $((Get-ExoCasMailboxInfo -Guid $_.Guid -CasMailboxes $casMailboxes).ActiveSyncDebugLogging) } } | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 }
 
 return "Mailbox information has been exported to $outputfile"

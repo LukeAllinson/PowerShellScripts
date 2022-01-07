@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
 
     .NOTES
-        Version: 0.4
+        Version: 0.5
+        Updated: 06-01-2022 v0.5    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.4    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
@@ -107,7 +108,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 }
 
 # Define constants for use later
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXORoomCalendarInformation_' + $tenantName + '_' + $timeStamp + '.csv'
@@ -154,7 +155,7 @@ if ($mailboxCount -eq 0)
 Write-Verbose 'Beginning loop through all Room mailboxes'
 foreach ($mailbox in $mailboxes)
 {
-    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     {
         Write-Progress -Id 1 -Activity 'EXO Room Mailbox Calendar Information Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
     }
@@ -174,7 +175,7 @@ foreach ($mailbox in $mailboxes)
     }
 }
 
-if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Activity 'EXO Room Mailbox Calendar Information Report' -Id 1 -Completed
 }

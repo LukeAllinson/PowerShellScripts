@@ -9,7 +9,9 @@
         This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
     .NOTES
-        Version: 0.5
+        Version: 0.7
+        Updated: 07-01-2022 v0.7    Updated to use .Where method instead of Where-Object for speed
+        Updated: 06-01-2022 v0.6    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.5    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.4    Updated filename ordering
         Updated: 18-10-2021 v0.3    Refactored to remove unnecessary lines, add error handling and improve formatting
@@ -110,7 +112,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 
 # Set Constants and Variables
 $i = 1
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxPermissions_' + $tenantName + '_' + $timeStamp + '.csv'
 $output = New-Object System.Collections.Generic.List[System.Object]
@@ -155,7 +157,7 @@ if ($mailboxCount -eq 0)
 try
 {
     Write-Verbose 'Getting Mailbox SendAs permissions from Exchange Online'
-    $allSendAsPerms = Get-EXORecipientPermission -ResultSize unlimited | Where-Object { $_.AccessRights -eq 'SendAs' -and $_.Trustee -notmatch 'SELF' }
+    $allSendAsPerms = @(Get-EXORecipientPermission -ResultSize unlimited).Where({ $_.AccessRights -eq 'SendAs' -and $_.Trustee -notmatch 'SELF' })
 }
 catch
 {
@@ -166,7 +168,7 @@ catch
 $i = 1
 foreach ($mailbox in $mailboxes)
 {
-    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     {
         Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
     }
@@ -177,12 +179,12 @@ foreach ($mailbox in $mailboxes)
         {
             # Get Full Access Permissions
             Write-Verbose "Processing FullAccess permissions for $($mailbox.UserPrincipalName)"
-            $fullAccessPerms = Get-EXOMailboxPermission $mailbox.Identity -ErrorAction stop | Where-Object { ($_.AccessRights -like 'Full*') -and ($_.User -notmatch 'SELF') }
+            $fullAccessPerms = @(Get-EXOMailboxPermission $mailbox.Identity -ErrorAction stop).Where({ ($_.AccessRights -like 'Full*') -and ($_.User -notmatch 'SELF') })
             if ($fullAccessPerms)
             {
                 foreach ($faPerm in $fullAccessPerms)
                 {
-                    $faUser = $mailboxes | Where-Object { $_.UserPrincipalName -eq $faPerm.User }
+                    $faUser = $mailboxes.Where( { $_.UserPrincipalName -eq $faPerm.User } )
                     if ($faUser)
                     {
                         $faPermEntry = [ordered]@{
@@ -241,12 +243,12 @@ foreach ($mailbox in $mailboxes)
 
         # Get SendAs Permissions
         Write-Verbose "Processing SendAs permissions for $($mailbox.UserPrincipalName)"
-        $sendAsPerms = $allSendAsPerms | Where-Object { $_.Identity -eq $mailbox.Identity }
+        $sendAsPerms = $allSendAsPerms.Where( { $_.Identity -eq $mailbox.Identity } )
         if ($sendAsPerms)
         {
             foreach ($saPerm in $sendAsPerms)
             {
-                $saUser = $mailboxes | Where-Object { $_.UserPrincipalName -eq $saPerm.Trustee }
+                $saUser = $mailboxes.Where({ $_.UserPrincipalName -eq $saPerm.Trustee })
                 if ($saUser)
                 {
                     $saPermEntry = [ordered]@{
@@ -294,7 +296,7 @@ foreach ($mailbox in $mailboxes)
         {
             foreach ($sobPerms in $sendOnBehalfPerms)
             {
-                $sobUser = $mailboxes | Where-Object { $_.Name -eq $sobPerms }
+                $sobUser = $mailboxes.Where({ $_.Name -eq $sobPerms })
                 if ($sobUser)
                 {
                     $sobPermEntry = [ordered]@{
@@ -339,7 +341,7 @@ foreach ($mailbox in $mailboxes)
 }
 
 # Export to csv
-if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Activity 'EXO Mailbox Permissions Report' -Id 1 -Completed
 }

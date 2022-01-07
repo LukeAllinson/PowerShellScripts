@@ -9,7 +9,10 @@
         This script connects to EXO and then outputs Public Folder information to a CSV file.
 
     .NOTES
-        Version: 0.4
+        Version: 0.6
+        Updated: 07-01-2022 v0.6    Updated to use .Where method instead of Where-Object for speed
+                                    Fixed public folder owner display
+        Updated: 06-01-2022 v0.5    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.4    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.3    Updated filename ordering
         Updated: 19-10-2021 v0.2    Refactored using current script standards
@@ -68,7 +71,7 @@ function Get-PublicFolderInformation ($publicFolder)
     {
         try
         {
-            $publicFolderOwners = (Get-PublicFolderClientPermission -Identity $publicFolder.Identity | Where-Object { $_.AccessRights -eq 'Owner' } | Select-Object User).DisplayName -join ';'
+            $publicFolderOwners = (@(Get-PublicFolderClientPermission -Identity $publicFolder.Identity).Where({ $_.AccessRights -eq 'Owner' })).User.DisplayName -join ';'
         }
         catch
         {
@@ -107,7 +110,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 }
 
 # Define constants for use later
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOPublicFolderSizes_' + $tenantName + '_' + $timeStamp + '.csv'
@@ -149,7 +152,7 @@ if ($publicFolderCount -eq 0)
 Write-Verbose 'Beginning loop through all Public Folders'
 foreach ($publicFolder in $publicFolders)
 {
-    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     {
         Write-Progress -Id 1 -Activity 'EXO Public Folder Size Report' -Status "Processing $($i) of $($publicFolderCount) Public Folders --- $($publicFolder.Identity)" -PercentComplete (($i * 100) / $publicFolderCount)
     }
@@ -169,7 +172,7 @@ foreach ($publicFolder in $publicFolders)
     }
 }
 
-if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Activity 'EXO Public Folder Size Report' -Id 1 -Completed
 }

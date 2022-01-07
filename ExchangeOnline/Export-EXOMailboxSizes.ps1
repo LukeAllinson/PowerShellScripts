@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
     .NOTES
-        Version: 0.8
+        Version: 0.9
+        Updated: 06-01-2022 v0.9    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
                                     Disabled write-progress if the verbose parameter is used
         Updated: 10-11-2021 v0.7    Updated to include inactive mailboxes and improved error handling
@@ -33,7 +34,7 @@
 
     .PARAMETER IncludeInactiveMailboxes
         Include inactive mailboxes in results; these are not included by default.
-    
+
     .PARAMETER RecipientTypeDetails
         Provide one or more RecipientTypeDetails values to return only mailboxes of those types in the results. Seperate multiple values by commas.
         Valid values are: DiscoveryMailbox, EquipmentMailbox, GroupMailbox, RoomMailbox, SchedulingMailbox, SharedMailbox, TeamMailbox, UserMailbox.
@@ -165,7 +166,7 @@ function Get-MailboxInformation ($mailbox)
         catch
         {
             Write-Error -Message "Error getting archive mailbox statistics for $($mailbox.PrimarySmtpAddress)" -ErrorAction Continue
-            
+
         }
     }
 
@@ -179,7 +180,7 @@ function Get-MailboxInformation ($mailbox)
         IsInactiveMailbox     = $mailbox.IsInactiveMailbox
         LitigationHoldEnabled = $mailbox.LitigationHoldEnabled
         RetentionHoldEnabled  = $mailbox.RetentionHoldEnabled
-        InPlaceHolds          = $mailbox.InPlaceHolds -join ";"
+        InPlaceHolds          = $mailbox.InPlaceHolds -join ';'
         ArchiveStatus         = $mailbox.ArchiveStatus
     }
 
@@ -228,7 +229,7 @@ if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*')
 
 # Define constants for use later
 $i = 1
-$timeStamp = Get-Date -Format ddMMyyyy-HHmm
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
 Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
 $tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
 $outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes_' + $tenantName + '_' + $timeStamp + '.csv'
@@ -285,17 +286,17 @@ if ($mailboxCount -eq 0)
 Write-Verbose 'Beginning loop through all mailboxes'
 foreach ($mailbox in $mailboxes)
 {
-    if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+    if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     {
         Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
     }
-    
+
     $mailboxInfo = Get-MailboxInformation $mailbox
     $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
     $i++
 }
 
-if (!$PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent)
+if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
 }

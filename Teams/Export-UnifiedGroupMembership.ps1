@@ -187,7 +187,7 @@ if ($unifiedGroupsCount -eq 0)
     return 'There are no unified groups found using the supplied filters'
 }
 
-#  Loop through the list of mailboxes and output the results to the CSV
+#  Loop through the list of unified groups and output the results to the CSV
 Write-Verbose 'Beginning loop through all unified groups'
 foreach ($unifiedGroup in $unifiedGroups)
 {

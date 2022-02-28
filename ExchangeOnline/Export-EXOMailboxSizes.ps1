@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
     .NOTES
-        Version: 0.9
+        Version: 0.10
+        Updated: 01-03-2022 v0.10   Included a paramter to use an input CSV file
         Updated: 06-01-2022 v0.9    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
                                     Disabled write-progress if the verbose parameter is used
@@ -49,6 +50,13 @@
     .PARAMETER Filter
         Alias of MailboxFilter parameter.
 
+    .PARAMETER InputCSV
+        Full path and filename to an input CSV to specify which mailboxes will be included in the report.
+        The CSV must contain a 'UserPrincipalName' or 'PrimarySmtpAddress' or 'EmailAddress' column/header.
+        If multiple are found, 'UserPrincipalName' is preferred if found, otherwise 'PrimarySmtpAddress'; 'EmailAddress' is included to cater for exports from non-Exchange (e.g. HR) systems or manually created files.
+        Note: All mailboxes are still retrieved and then compared to the CSV to ensure all requested information is captured.
+        Note2: Progress is shown as overall progress of all mailboxes plus progress of CSV contents.
+
     .EXAMPLE
         .\Export-EXOMailboxSizes.ps1 C:\Scripts\
         Exports size information for all mailbox types
@@ -79,6 +87,11 @@ param
         Mandatory,
         Position = 0,
         ParameterSetName = 'IncludeInactive'
+    )]
+    [Parameter(
+        Mandatory,
+        Position = 0,
+        ParameterSetName = 'InputCSV'
     )]
     [ValidateNotNullOrEmpty()]
     [ValidateScript(
@@ -137,7 +150,25 @@ param
     )]
     [Alias('Filter')]
     [string]
-    $MailboxFilter
+    $MailboxFilter,
+    [Parameter(
+        ParameterSetName = 'InputCSV'
+    )]
+    [ValidateNotNullOrEmpty()]
+    [ValidateScript(
+        {
+            if (!(Test-Path -Path $_))
+            {
+                throw "The file $_ does not exist"
+            }
+            else
+            {
+                return $true
+            }
+        }
+    )]
+    [IO.DirectoryInfo]
+    $InputCSV
 )
 
 function Get-MailboxInformation ($mailbox)
@@ -216,7 +247,32 @@ function Get-MailboxInformation ($mailbox)
 
     Write-Verbose "Completed gathering mailbox statistics for $($mailbox.PrimarySmtpAddress)"
     return [PSCustomObject]$mailboxInfo
-} #End Function Get-MailboxInformation
+} #End function Get-MailboxInformation
+
+function Compare-EmailAddresses
+{
+    [OutputType([bool])]
+    param
+    (
+        [Parameter(Mandatory)]
+        [System.Collections.Generic.List[System.Object]]
+        $EmailAddresses,
+        [Parameter(Mandatory)]
+        [System.Array]
+        $CsvValues
+    )
+    Write-Verbose 'Comparing column to EmailAddresses'
+    foreach ($emailAddress in $EmailAddresses)
+    {
+        $strippedAddress = $emailAddress.Split(':')[1]
+        if ($strippedAddress -in $CsvValues)
+        {
+            return $true
+        }
+    }
+    return $false
+
+} #End function Compare-EmailAddresses
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
@@ -239,6 +295,68 @@ Write-Verbose "Checking if $outputFile already exists"
 if (Test-Path $outputFile -ErrorAction SilentlyContinue)
 {
     throw "The file $outputFile already exists, please delete the file and try again."
+}
+
+# Import and validate inputCSV if specified
+if ($InputCSV)
+{
+    $csv = Import-Csv $InputCSV -Delimiter ','
+    $csvHeaders = ($csv | Get-Member -MemberType NoteProperty).Name.ToLower()
+    if ('userprincipalname' -notin $csvHeaders -and 'emailaddress' -notin $csvHeaders -and 'primarysmtpaddress' -notin $csvHeaders)
+    {
+        throw "The file $InputCSV is invalid; cannot find the 'UserPrincipalName', 'Emailaddress' or 'PrimarySmtpAddress' column headings.`
+            Please ensure the CSV contains at least one of these headings."
+    }
+    $csvCount = $csv.Count
+    Write-Verbose "There are $csvCount mailboxes in the InputCSV file $InputCSV"
+    if ($csvCount -eq 0)
+    {
+        return 'There are no mailboxes found in the InputCSV file $InputCSV'
+    }
+    ## create new variable to contain column we are going to use
+    # all 3 headers supplied
+    if ('userprincipalname' -in $csvHeaders -and 'emailaddress' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.userprincipalname
+        Write-Verbose '3 columns supplied; using primarysmtpaddress'
+    }
+    # userprincipalname and emailaddress
+    elseif ('userprincipalname' -in $csvHeaders -and 'emailaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.userprincipalname
+        Write-Verbose 'userprincipalname and emailaddress columns supplied; using emailaddress'
+    }
+    # userprincipalname and primarysmtpaddress
+    elseif ('userprincipalname' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.userprincipalname
+        Write-Verbose 'userprincipalname and primarysmtpaddress columns supplied; using primarysmtpaddress'
+    }
+    # emailaddress and primarysmtpaddress
+    elseif ('emailaddress' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.primarysmtpaddress
+        Write-Verbose 'emailaddress and primarysmtpaddress columns supplied; using primarysmtpaddress'
+    }
+    # only userprincipalname
+    elseif ('userprincipalname' -in $csvHeaders)
+    {
+        $csvCompare = $csv.userprincipalname
+        Write-Verbose 'only userprincipalname column supplied; using userprincipalname'
+    }
+    # only emailaddress
+    elseif ('emailaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.emailaddress
+        Write-Verbose 'only emailaddress column supplied; using emailaddress'
+    }
+    # only primarysmtpaddress
+    elseif ('primarysmtpaddress' -in $csvHeaders)
+    {
+        $csvCompare = $csv.primarysmtpaddress
+        Write-Verbose 'only primarysmtpaddress column supplied; using emailaddress'
+    }
+    $j = 1
 }
 
 # Define a hashtable for splatting into Get-EXOMailbox
@@ -279,7 +397,7 @@ Write-Verbose "There are $mailboxCount mailboxes"
 
 if ($mailboxCount -eq 0)
 {
-    return 'There are no mailboxes found using the supplied filters'
+    throw 'There are no mailboxes found using the supplied filters'
 }
 
 #  Loop through the list of mailboxes and output the results to the CSV
@@ -291,16 +409,48 @@ foreach ($mailbox in $mailboxes)
         Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
     }
 
-    $mailboxInfo = Get-MailboxInformation $mailbox
-    $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
+    # if InputCSV is specified, match against mailbox list
+    if ($InputCSV)
+    {
+        if ($j -gt $csvCount)
+        {
+            Write-Verbose 'All CSV mailboxes found; exiting foreach loop'
+            break
+        }
+        if ($mailbox.UserPrincipalName -in $csvCompare -or $mailbox.PrimarySmtpAddress -in $csvCompare -or (Compare-EmailAddresses -EmailAddresses $mailbox.EmailAddresses -CsvValues $csvCompare))
+        {
+            if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
+            {
+                Write-Progress -Id 2 -ParentId 1 -Activity 'Mailboxes from CSV' -Status "Processing $($j) of $($csvCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($j * 100) / $csvCount)
+            }
+            $mailboxInfo = Get-MailboxInformation $mailbox
+            $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
+            $j++
+        }
+    }
+    else
+    {
+        $mailboxInfo = Get-MailboxInformation $mailbox
+        $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
+    }
     $i++
 }
 
 if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
+    if ($InputCSV)
+    {
+        Write-Progress -Activity 'Mailboxes from CSV' -Id 2 -Completed
+
+    }
     Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
 }
-
-$output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
-
-return "Mailbox size data has been exported to $outputfile"
+if ($output)
+{
+    $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+    return "Mailbox size data has been exported to $outputfile"
+}
+else
+{
+    return 'No results returned; no data exported'
+}

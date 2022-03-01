@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
     .NOTES
-        Version: 0.10
+        Version: 0.11
+        Updated: 01-03-2022 v0.11    Updated to an export command that calls the get command
         Updated: 01-03-2022 v0.10   Included a paramter to use an input CSV file
         Updated: 06-01-2022 v0.9    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters
@@ -167,208 +168,20 @@ param
             }
         }
     )]
-    [IO.DirectoryInfo]
+    [IO.FileInfo]
     $InputCSV
 )
 
-function Get-MailboxInformation ($mailbox)
-{
-    # Get Mailbox Statistics
-    Write-Verbose "Getting mailbox statistics for $($mailbox.PrimarySmtpAddress)"
-    try
-    {
-        $primaryStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -IncludeSoftDeletedRecipients -Properties LastLogonTime -WarningAction SilentlyContinue -ErrorAction Stop
-        $primaryTotalItemSizeMB = $primaryStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
-    }
-    catch
-    {
-        Write-Error -Message "Error getting mailbox statistics for $($mailbox.PrimarySmtpAddress)" -ErrorAction Continue
-    }
-
-    # If an Archive exists, then get Statistics
-    if ($mailbox.ArchiveStatus -ne 'None')
-    {
-        Write-Verbose "Getting archive mailbox statistics for $($mailbox.PrimarySmtpAddress)"
-        try
-        {
-            $archiveStats = Get-EXOMailboxStatistics -Identity $mailbox.Guid -IncludeSoftDeletedRecipients -Properties LastLogonTime -Archive -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-            $archiveTotalItemSizeMB = $archiveStats | Select-Object @{name = 'TotalItemSizeMB'; expression = { [math]::Round(($_.TotalItemSize.ToString().Split('(')[1].Split(' ')[0].Replace(',', '') / 1MB), 2) } }
-        }
-        catch
-        {
-            Write-Error -Message "Error getting archive mailbox statistics for $($mailbox.PrimarySmtpAddress)" -ErrorAction Continue
-
-        }
-    }
-
-    # Store everything in an Arraylist
-    $mailboxInfo = [ordered]@{
-        UserPrincipalName     = $mailbox.UserPrincipalName
-        DisplayName           = $mailbox.Displayname
-        PrimarySmtpAddress    = $mailbox.PrimarySmtpAddress
-        Alias                 = $mailbox.Alias
-        RecipientTypeDetails  = $mailbox.RecipientTypeDetails
-        IsInactiveMailbox     = $mailbox.IsInactiveMailbox
-        LitigationHoldEnabled = $mailbox.LitigationHoldEnabled
-        RetentionHoldEnabled  = $mailbox.RetentionHoldEnabled
-        InPlaceHolds          = $mailbox.InPlaceHolds -join ';'
-        ArchiveStatus         = $mailbox.ArchiveStatus
-    }
-
-    if ($primaryStats)
-    {
-        $mailboxInfo['TotalItemSize(MB)'] = $primaryTotalItemSizeMB.TotalItemSizeMB
-        $mailboxInfo['ItemCount'] = $primaryStats.ItemCount
-        $mailboxInfo['DeletedItemCount'] = $primaryStats.DeletedItemCount
-        $mailboxInfo['LastLogonTime'] = $primaryStats.LastLogonTime
-    }
-    else
-    {
-        $mailboxInfo['TotalItemSize(MB)'] = $null
-        $mailboxInfo['ItemCount'] = $null
-        $mailboxInfo['DeletedItemCount'] = $null
-        $mailboxInfo['LastLogonTime'] = $null
-    }
-
-    if ($archiveStats)
-    {
-        $mailboxInfo['Archive_TotalItemSize(MB)'] = $archiveTotalItemSizeMB.TotalItemSizeMB
-        $mailboxInfo['Archive_ItemCount'] = $archiveStats.ItemCount
-        $mailboxInfo['Archive_DeletedItemCount'] = $archiveStats.DeletedItemCount
-        $mailboxInfo['Archive_LastLogonTime'] = $archiveStats.LastLogonTime
-    }
-    else
-    {
-        $mailboxInfo['Archive_TotalItemSize(MB)'] = $null
-        $mailboxInfo['Archive_ItemCount'] = $null
-        $mailboxInfo['Archive_DeletedItemCount'] = $null
-        $mailboxInfo['Archive_LastLogonTime'] = $null
-    }
-
-    Write-Verbose "Completed gathering mailbox statistics for $($mailbox.PrimarySmtpAddress)"
-    return [PSCustomObject]$mailboxInfo
-} #End function Get-MailboxInformation
-
-function Compare-EmailAddresses
-{
-    [OutputType([bool])]
-    param
-    (
-        [Parameter(Mandatory)]
-        [System.Collections.Generic.List[System.Object]]
-        $EmailAddresses,
-        [Parameter(Mandatory)]
-        [System.Array]
-        $CsvValues
-    )
-    Write-Verbose 'Comparing column to EmailAddresses'
-    foreach ($emailAddress in $EmailAddresses)
-    {
-        $strippedAddress = $emailAddress.Split(':')[1]
-        if ($strippedAddress -in $CsvValues)
-        {
-            return $true
-        }
-    }
-    return $false
-
-} #End function Compare-EmailAddresses
-
-### Main Script
-# Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
-{
-    Write-Verbose 'Not connected to Exchange Online, prompting to connect'
-    Connect-ExchangeOnline
-}
-
-# Define constants for use later
-$i = 1
-$timeStamp = Get-Date -Format yyyyMMdd-HHmm
-Write-Verbose 'Getting Tenant Name for file name from Exchange Online'
-$tenantName = (Get-OrganizationConfig).Name.Split('.')[0]
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes_' + $tenantName + '_' + $timeStamp + '.csv'
-$output = New-Object System.Collections.Generic.List[System.Object]
-
-Write-Verbose "Checking if $outputFile already exists"
-if (Test-Path $outputFile -ErrorAction SilentlyContinue)
-{
-    throw "The file $outputFile already exists, please delete the file and try again."
-}
-
-# Import and validate inputCSV if specified
-if ($InputCSV)
-{
-    $csv = Import-Csv $InputCSV -Delimiter ','
-    $csvHeaders = ($csv | Get-Member -MemberType NoteProperty).Name.ToLower()
-    if ('userprincipalname' -notin $csvHeaders -and 'emailaddress' -notin $csvHeaders -and 'primarysmtpaddress' -notin $csvHeaders)
-    {
-        throw "The file $InputCSV is invalid; cannot find the 'UserPrincipalName', 'Emailaddress' or 'PrimarySmtpAddress' column headings.`
-            Please ensure the CSV contains at least one of these headings."
-    }
-    $csvCount = $csv.Count
-    Write-Verbose "There are $csvCount mailboxes in the InputCSV file $InputCSV"
-    if ($csvCount -eq 0)
-    {
-        return 'There are no mailboxes found in the InputCSV file $InputCSV'
-    }
-    ## create new variable to contain column we are going to use
-    # all 3 headers supplied
-    if ('userprincipalname' -in $csvHeaders -and 'emailaddress' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.userprincipalname
-        Write-Verbose '3 columns supplied; using primarysmtpaddress'
-    }
-    # userprincipalname and emailaddress
-    elseif ('userprincipalname' -in $csvHeaders -and 'emailaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.userprincipalname
-        Write-Verbose 'userprincipalname and emailaddress columns supplied; using emailaddress'
-    }
-    # userprincipalname and primarysmtpaddress
-    elseif ('userprincipalname' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.userprincipalname
-        Write-Verbose 'userprincipalname and primarysmtpaddress columns supplied; using primarysmtpaddress'
-    }
-    # emailaddress and primarysmtpaddress
-    elseif ('emailaddress' -in $csvHeaders -and 'primarysmtpaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.primarysmtpaddress
-        Write-Verbose 'emailaddress and primarysmtpaddress columns supplied; using primarysmtpaddress'
-    }
-    # only userprincipalname
-    elseif ('userprincipalname' -in $csvHeaders)
-    {
-        $csvCompare = $csv.userprincipalname
-        Write-Verbose 'only userprincipalname column supplied; using userprincipalname'
-    }
-    # only emailaddress
-    elseif ('emailaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.emailaddress
-        Write-Verbose 'only emailaddress column supplied; using emailaddress'
-    }
-    # only primarysmtpaddress
-    elseif ('primarysmtpaddress' -in $csvHeaders)
-    {
-        $csvCompare = $csv.primarysmtpaddress
-        Write-Verbose 'only primarysmtpaddress column supplied; using emailaddress'
-    }
-    $j = 1
-}
-
-# Define a hashtable for splatting into Get-EXOMailbox
-$commandHashTable = @{
-    Properties  = 'LitigationHoldEnabled', 'RetentionHoldEnabled', 'InPlaceHolds', 'ArchiveStatus', 'IsInactiveMailbox'
-    ResultSize  = 'Unlimited'
-    ErrorAction = 'Stop'
-}
+$commandHashTable = @{}
 
 if ($IncludeInactiveMailboxes)
 {
     $commandHashTable['IncludeInactiveMailbox'] = $true
+}
+
+if ($InactiveMailboxOnly)
+{
+    $commandHashTable['InactiveMailboxOnly'] = $true
 }
 
 if ($RecipientTypeDetails)
@@ -381,71 +194,19 @@ if ($MailboxFilter)
     $commandHashTable['Filter'] = $MailboxFilter
 }
 
-# Get mailboxes using the parameters defined from the hashtable and throw an error if encountered
-try
+if ($InputCSV)
 {
-    Write-Verbose 'Getting Mailboxes from Exchange Online'
-    $mailboxes = @(Get-EXOMailbox @commandHashTable)
-}
-catch
-{
-    throw
+    $commandHashTable['InputCSV'] = $InputCSV
 }
 
-$mailboxCount = $mailboxes.Count
-Write-Verbose "There are $mailboxCount mailboxes"
 
-if ($mailboxCount -eq 0)
-{
-    throw 'There are no mailboxes found using the supplied filters'
-}
+$timeStamp = Get-Date -Format yyyyMMdd-HHmm
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes' + '_' + $timeStamp + '.csv'
 
-#  Loop through the list of mailboxes and output the results to the CSV
-Write-Verbose 'Beginning loop through all mailboxes'
-foreach ($mailbox in $mailboxes)
-{
-    if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
-    {
-        Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
-    }
+$scriptPath = $PSScriptRoot + [IO.Path]::DirectorySeparatorChar + 'Get-EXOMailboxSizes.ps1'
+$output = & $scriptPath @commandHashTable
 
-    # if InputCSV is specified, match against mailbox list
-    if ($InputCSV)
-    {
-        if ($j -gt $csvCount)
-        {
-            Write-Verbose 'All CSV mailboxes found; exiting foreach loop'
-            break
-        }
-        if ($mailbox.UserPrincipalName -in $csvCompare -or $mailbox.PrimarySmtpAddress -in $csvCompare -or (Compare-EmailAddresses -EmailAddresses $mailbox.EmailAddresses -CsvValues $csvCompare))
-        {
-            if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
-            {
-                Write-Progress -Id 2 -ParentId 1 -Activity 'Mailboxes from CSV' -Status "Processing $($j) of $($csvCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($j * 100) / $csvCount)
-            }
-            $mailboxInfo = Get-MailboxInformation $mailbox
-            $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
-            $j++
-        }
-    }
-    else
-    {
-        $mailboxInfo = Get-MailboxInformation $mailbox
-        $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
-    }
-    $i++
-}
-
-if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
-{
-    if ($InputCSV)
-    {
-        Write-Progress -Activity 'Mailboxes from CSV' -Id 2 -Completed
-
-    }
-    Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
-}
-if ($output)
+if ($output.Count -ge 1)
 {
     $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
     return "Mailbox size data has been exported to $outputfile"

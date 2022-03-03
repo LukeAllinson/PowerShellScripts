@@ -9,7 +9,8 @@
         This script connects to EXO and then gets Mailbox statistics
 
     .NOTES
-        Version: 0.11
+        Version: 0.12
+        Updated: 03-03-2033 v0.12   Removed DiscoveryMailboxes from results via where-object on initial Get-EXOMailbox
         Updated: 01-03-2022 v0.11   Updated to a Get Command - there will be a corresponding Export that utilises this data
         Updated: 01-03-2022 v0.10   Included a paramter to use an input CSV file
         Updated: 06-01-2022 v0.9    Changed output file date to match order of ISO8601 standard

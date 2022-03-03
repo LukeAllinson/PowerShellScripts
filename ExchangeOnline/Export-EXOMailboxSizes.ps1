@@ -9,8 +9,9 @@
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.
 
     .NOTES
-        Version: 0.11
-        Updated: 01-03-2022 v0.11    Updated to an export command that calls the get command
+        Version: 0.12
+        Updated: 03-03-2022 v0.12   Replaced Export-Csv with Export-Excel (from ImportExcel Module) and added Summary page
+        Updated: 01-03-2022 v0.11   Updated to an export command that calls the get command
         Updated: 01-03-2022 v0.10   Included a paramter to use an input CSV file
         Updated: 06-01-2022 v0.9    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.8    Added parameter sets to prevent use of mutually exclusive parameters

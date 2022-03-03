@@ -90,7 +90,6 @@ param
         ParameterSetName = 'IncludeInactive'
     )]
     [ValidateSet(
-        'DiscoveryMailbox',
         'EquipmentMailbox',
         'GroupMailbox',
         'RoomMailbox',
@@ -337,7 +336,7 @@ if ($MailboxFilter)
 try
 {
     Write-Verbose 'Getting Mailboxes from Exchange Online'
-    $mailboxes = @(Get-EXOMailbox @commandHashTable)
+    $mailboxes = @(Get-EXOMailbox @commandHashTable | Where-Object { $_.RecipientTypeDetails -ne 'DiscoveryMailbox' })
 }
 catch
 {

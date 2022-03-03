@@ -1,4 +1,4 @@
-﻿#Requires -Version 5 -Modules ExchangeOnlineManagement
+﻿#Requires -Version 5 -Modules ExchangeOnlineManagement, ImportExcel
 
 <#
     .SYNOPSIS
@@ -129,7 +129,6 @@ param
         ParameterSetName = 'IncludeInactive'
     )]
     [ValidateSet(
-        'DiscoveryMailbox',
         'EquipmentMailbox',
         'GroupMailbox',
         'RoomMailbox',
@@ -201,14 +200,91 @@ if ($InputCSV)
 
 
 $timeStamp = Get-Date -Format yyyyMMdd-HHmm
-$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes' + '_' + $timeStamp + '.csv'
+$outputFile = $OutputPath.FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar + 'EXOMailboxSizes' + '_' + $timeStamp + '.xlsx'
 
 $scriptPath = $PSScriptRoot + [IO.Path]::DirectorySeparatorChar + 'Get-EXOMailboxSizes.ps1'
 $output = & $scriptPath @commandHashTable
 
 if ($output.Count -ge 1)
 {
-    $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
+    $output | Export-Excel -Path $outputFile -WorksheetName 'MailboxStats' -FreezeTopRow -AutoSize -AutoFilter -TableName 'MailboxStats'
+
+    ### Add summary sheet and apply formatting
+    $summaryPage = New-Object System.Collections.Generic.List[System.Object]
+    $mailboxTypes = ('UserMailbox', 'SharedMailbox', 'RoomMailbox', 'EquipmentMailbox')
+    $t = 3
+    foreach ($mailboxType in $mailboxTypes)
+    {
+        $summaryStats = [ordered]@{
+            'MailboxType'             = $mailboxType
+            'MailboxCount'            = "=COUNTIF(MailboxStats[RecipientTypeDetails],A$t)"
+            'TotalSize(MB)'           = "=SUMIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[TotalItemSize(MB)])"
+            'AverageSize(MB)'         = "=IF(C$t<>0,(AVERAGEIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[TotalItemSize(MB)])),0)"
+            'TotalItemCount'          = "=SUMIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[ItemCount])"
+            'AverageItemCount'        = "=IF(E$t<>0,(AVERAGEIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[TotalItemSize(MB)])),0)"
+            'ArchiveCount'            = "=COUNTIFS(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[ArchiveStatus],""Active"")"
+            'ArchiveTotalSize(MB)'    = "=SUMIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[Archive_TotalItemSize(MB)])"
+            'ArchiveAverageSize(MB)'  = "=IF(H$t<>0,(AVERAGEIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[Archive_TotalItemSize(MB)])),0)"
+            'ArchiveTotalItemCount'   = "=SUMIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[Archive_ItemCount])"
+            'ArchiveAverageItemCount' = "=IF(J$t<>0,(AVERAGEIF(MailboxStats[RecipientTypeDetails],A$t,MailboxStats[Archive_ItemCount])),0)"
+        }
+        $summaryPage.Add([PSCustomObject]$summaryStats) | Out-Null
+        $t++
+    }
+    $summaryStats = [ordered]@{
+        'MailboxType'             = 'Total'
+        'MailboxCount'            = '=SUM(B3:B6)'
+        'TotalSize(MB)'           = '=SUM(C3:C6)'
+        'AverageSize(MB)'         = '=SUM(D3:D6)'
+        'TotalItemCount'          = '=SUM(E3:E6)'
+        'AverageItemCount'        = '=SUM(F3:F6)'
+        'ArchiveCount'            = '=SUM(G3:G6)'
+        'ArchiveTotalSize(MB)'    = '=SUM(H3:H6)'
+        'ArchiveAverageSize(MB)'  = '=SUM(I3:I6)'
+        'ArchiveTotalItemCount'   = '=SUM(J3:J6)'
+        'ArchiveAverageItemCount' = '=SUM(K3:K6)'
+    }
+    $summaryPage.Add([PSCustomObject]$summaryStats) | Out-Null
+    $summaryPage | Export-Excel -Path $outputFile -WorksheetName 'Summary' -TableName 'Summary' -AutoSize -StartRow 2 -MoveToStart
+    $output | Sort-Object 'TotalItemSize(MB)' -Descending | Select-Object UserPrincipalName, DisplayName, RecipientTypeDetails, 'TotalItemSize(MB)', ItemCount -First 10 | Export-Excel -Path $outputFile -WorksheetName 'Summary' -TableName 'Top10BySize' -StartRow 10
+    $output | Sort-Object ItemCount -Descending | Select-Object UserPrincipalName, DisplayName, RecipientTypeDetails, 'TotalItemSize(MB)', ItemCount -First 10 | Export-Excel -Path $outputFile -WorksheetName 'Summary' -TableName 'Top10ByItemCount' -StartRow 23
+    $output | Sort-Object 'Archive_TotalItemSize(MB)' -Descending | Select-Object UserPrincipalName, DisplayName, RecipientTypeDetails, 'Archive_TotalItemSize(MB)', Archive_ItemCount -First 10 | Export-Excel -Path $outputFile -WorksheetName 'Summary' -TableName 'Top10ByArchiveSize' -StartRow 36
+    $output | Sort-Object Archive_ItemCount -Descending | Select-Object UserPrincipalName, DisplayName, RecipientTypeDetails, 'Archive_TotalItemSize(MB)', Archive_ItemCount -First 10 | Export-Excel -Path $outputFile -WorksheetName 'Summary' -TableName 'Top10ByArchiveItemCount' -StartRow 49
+    $excelPkg = Open-ExcelPackage -Path $outputFile
+    $summarySheet = $excelPkg.Workbook.Worksheets['Summary']
+    $summarySheet.Cells[1, 1].Value = 'Summary'
+    $summarySheet.Cells[9, 1].Value = 'Top10 Mailboxes By Size'
+    $summarySheet.Cells[22, 1].Value = 'Top10 Mailboxes By ItemCount'
+    $summarySheet.Cells[35, 1].Value = 'Top10 Archives By Size'
+    $summarySheet.Cells[48, 1].Value = 'Top10 Archives By ItemCount'
+    $summarySheet.Select('A1')
+    $summarySheet.SelectedRange.Style.Font.Size = 16
+    $summarySheet.SelectedRange.Style.Font.Bold = $true
+    $summarySheetTitleCells = ('A9', 'A22', 'A35', 'A48')
+    ForEach ($cell in $summarySheetTitleCells)
+    {
+        $summarySheet.Select($cell)
+        $summarySheet.SelectedRange.Style.Font.Size = 13
+        $summarySheet.SelectedRange.Style.Font.Bold = $true
+    }
+    $summarySheetBoldRanges = ('A7:K7', 'D11:D20', 'E24:E33', 'D37:D46', 'E50:E59')
+    ForEach ($range in $summarySheetBoldRanges)
+    {
+        $summarySheet.Select($range)
+        $summarySheet.SelectedRange.Style.Font.Bold = $true
+    }
+    $summarySheetAverageRanges = ('D3:D7', 'F3:F7', 'I3:I7', 'K3:K7')
+    ForEach ($range in $summarySheetAverageRanges)
+    {
+        $summarySheet.Select($range)
+        $summarySheet.SelectedRange.Style.Numberformat.Format = '0.00'
+    }
+    $fullRange = ($summarySheet.Dimension | Select-Object Address).Address
+    $summarySheet.Select($fullRange)
+    $summarySheet.SelectedRange.AutoFitColumns()
+    $summarySheet.Select('A1')
+    Close-ExcelPackage $excelPkg
+
     return "Mailbox size data has been exported to $outputfile"
 }
 else

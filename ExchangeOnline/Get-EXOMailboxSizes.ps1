@@ -4,6 +4,7 @@
     .SYNOPSIS
         Name: Get-EXOMailboxSizes.ps1
         This gathers mailbox size information including primary and archive size and item count.
+        NOTE: If you are not connected to Exchange Online Management prior to the running of this command then the created connection will not be preserved.
 
     .DESCRIPTION
         This script connects to EXO and then gets Mailbox statistics
@@ -135,7 +136,7 @@ param
 
 function Get-MailboxInformation ($mailbox)
 {
-    # Get Mailbox Statistics
+    # Get mailbox Statistics
     Write-Verbose "Getting mailbox statistics for $($mailbox.PrimarySmtpAddress)"
     try
     {
@@ -336,7 +337,7 @@ if ($MailboxFilter)
 # Get mailboxes using the parameters defined from the hashtable and throw an error if encountered
 try
 {
-    Write-Verbose 'Getting Mailboxes from Exchange Online'
+    Write-Verbose 'Getting mailboxes from Exchange Online'
     $mailboxes = @(Get-EXOMailbox @commandHashTable | Where-Object { $_.RecipientTypeDetails -ne 'DiscoveryMailbox' })
 }
 catch
@@ -358,7 +359,7 @@ foreach ($mailbox in $mailboxes)
 {
     if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     {
-        Write-Progress -Id 1 -Activity 'EXO Mailbox Size Report' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
+        Write-Progress -Id 1 -Activity 'Getting mailboxes from Exchange Online' -Status "Processing $($i) of $($mailboxCount) mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
     }
 
     # if InputCSV is specified, match against mailbox list
@@ -373,7 +374,7 @@ foreach ($mailbox in $mailboxes)
         {
             if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
             {
-                Write-Progress -Id 2 -ParentId 1 -Activity 'Mailboxes from CSV' -Status "Processing $($j) of $($csvCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($j * 100) / $csvCount)
+                Write-Progress -Id 2 -ParentId 1 -Activity 'Processed mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
             }
             $mailboxInfo = Get-MailboxInformation $mailbox
             $output.Add([PSCustomObject]$mailboxInfo) | Out-Null
@@ -392,10 +393,10 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     if ($InputCSV)
     {
-        Write-Progress -Activity 'Mailboxes from CSV' -Id 2 -Completed
+        Write-Progress -Activity 'Processed mailboxes from csv' -Id 2 -Completed
 
     }
-    Write-Progress -Activity 'EXO Mailbox Size Report' -Id 1 -Completed
+    Write-Progress -Activity 'Getting mailboxes from Exchange Online' -Id 1 -Completed
 }
 if ($output)
 {

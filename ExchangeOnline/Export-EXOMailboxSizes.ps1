@@ -4,6 +4,7 @@
     .SYNOPSIS
         Name: Export-EXOMailboxSizes.ps1
         This gathers mailbox size information including primary and archive size and item count and exports to a csv file.
+        NOTE: If you are not connected to Exchange Online Management prior to the running of this command then the created connection will not be preserved.
 
     .DESCRIPTION
         This script connects to EXO and then outputs Mailbox statistics to a CSV file.

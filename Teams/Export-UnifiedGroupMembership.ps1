@@ -10,8 +10,9 @@
         This script connects to EXO and then outputs Microsoft 365 Group information and membership to a CSV file.
 
     .NOTES
-        Version: 0.1
+        Version: 0.2
         Updated: 19-01-2022  v0.1    Initial draft
+        Updated: 03-05-2022  v0.2    Updated ErrorAction to trigger try/catch properly
 
         Authors: Luke Allinson (github:LukeAllinson)
                  Robin Dadswell (github:RobinDadswell)
@@ -195,7 +196,7 @@ foreach ($unifiedGroup in $unifiedGroups)
 
     try
     {
-        $unifiedGroupOwners = (Get-UnifiedGroupLinks -Identity $([string]$unifiedGroup.Guid) -LinkType Owners -ResultSize Unlimited).PrimarySmtpAddress
+        $unifiedGroupOwners = (Get-UnifiedGroupLinks -Identity $([string]$unifiedGroup.Guid) -LinkType Owners -ResultSize Unlimited -ErrorAction Stop).PrimarySmtpAddress
     }
     # mainly catching authentication timeouts
     catch
@@ -206,7 +207,7 @@ foreach ($unifiedGroup in $unifiedGroups)
 
     try
     {
-        $unifiedGroupMembers = (Get-UnifiedGroupLinks -Identity $([string]$unifiedGroup.Guid) -LinkType Members -ResultSize Unlimited).PrimarySmtpAddress
+        $unifiedGroupMembers = (Get-UnifiedGroupLinks -Identity $([string]$unifiedGroup.Guid) -LinkType Members -ResultSize Unlimited -ErrorAction Stop).PrimarySmtpAddress
     }
     # mainly catching authentication timeouts
     catch

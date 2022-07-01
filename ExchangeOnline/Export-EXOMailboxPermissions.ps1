@@ -122,9 +122,9 @@ function Resolve-Permissions
         [bool]
         $IncludeNoPermissions
     )
-    
+
     $output = New-Object System.Collections.Generic.List[System.Object]
-    if ($IncludeNoPermissions -and !$permObj)
+    if ($IncludeNoPermissions -and !$Permissions)
     {
         $permEntry = [ordered]@{
             UserPrincipalName           = $mailbox.UserPrincipalName
@@ -139,7 +139,7 @@ function Resolve-Permissions
         $output.Add([PSCustomObject]$permEntry) | Out-Null
         return $output
     }
-    
+
     foreach ($perm in $Permissions)
     {
         switch ($permType)
@@ -164,10 +164,10 @@ function Resolve-Permissions
         if ($permTrustee)
         {
             $objPermEntry = [ordered]@{
-                UserPrincipalName           = $mailboxObj.UserPrincipalName
-                DisplayName                 = $mailboxObj.DisplayName
-                PrimarySmtpAddress          = $mailboxObj.PrimarySmtpAddress
-                RecipientTypeDetails        = $mailboxObj.RecipientTypeDetails
+                UserPrincipalName           = $mailbox.UserPrincipalName
+                DisplayName                 = $mailbox.DisplayName
+                PrimarySmtpAddress          = $mailbox.PrimarySmtpAddress
+                RecipientTypeDetails        = $mailbox.RecipientTypeDetails
                 PermissionType              = $PermissionType
                 TrusteeIdentity             = $permTrustee.PrimarySmtpAddress
                 TrusteeName                 = $permTrustee.Name
@@ -178,10 +178,10 @@ function Resolve-Permissions
         else
         {
             $objPermEntry = [ordered]@{
-                UserPrincipalName           = $mailboxObj.UserPrincipalName
-                DisplayName                 = $mailboxObj.DisplayName
-                PrimarySmtpAddress          = $mailboxObj.PrimarySmtpAddress
-                RecipientTypeDetails        = $mailboxObj.RecipientTypeDetails
+                UserPrincipalName           = $mailbox.UserPrincipalName
+                DisplayName                 = $mailbox.DisplayName
+                PrimarySmtpAddress          = $mailbox.PrimarySmtpAddress
+                RecipientTypeDetails        = $mailbox.RecipientTypeDetails
                 PermissionType              = $PermissionType
                 TrusteeIdentity             = $trusteeId
                 TrusteeName                 = '<TrusteeNotFound>'
@@ -304,7 +304,7 @@ foreach ($mailbox in $mailboxes)
         Write-Progress -Id 2 -ParentId 1 -Activity 'Processing Mailbox Permissions' -Status "Processing $($i) of $($mailboxCount) Mailboxes --- $($mailbox.UserPrincipalName)" -PercentComplete (($i * 100) / $mailboxCount)
         $i++
     }
-    
+
     # Full Access Permissions
     Write-Verbose "Processing FullAccess permissions for $($mailbox.UserPrincipalName)"
     try
@@ -328,17 +328,17 @@ foreach ($mailbox in $mailboxes)
         Continue
     }
 
-    $output.AddRange((Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $fullAccessPerms -PermissionType 'FullAccess' -IncludeNoPermissions $IncludeNoPermissions))
+    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $fullAccessPerms -PermissionType 'FullAccess' -IncludeNoPermissions $IncludeNoPermissions))
 
     # SendAs Permissions
     Write-Verbose "Processing SendAs permissions for $($mailbox.UserPrincipalName)"
     $sendAsPerms = $allSendAsPerms.Where( { $_.Identity -eq $mailbox.Identity } )
-    $output.AddRange((Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions))
+    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions))
 
     # SendOnBehalf Permissions
     Write-Verbose "Processing SendOnBehalfTo permissions for $($mailbox.UserPrincipalName)"
     $sendOnBehalfPerms = $mailbox.GrantSendOnBehalfTo
-    $output.AddRange((Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendOnBehalfPerms -PermissionType 'SendOnBehalf' -IncludeNoPermissions $IncludeNoPermissions))
+    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendOnBehalfPerms -PermissionType 'SendOnBehalf' -IncludeNoPermissions $IncludeNoPermissions))
 }
 
 if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
@@ -353,7 +353,6 @@ $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Completed
-    
 }
 
 return "Mailbox permissions have been exported to $outputfile"

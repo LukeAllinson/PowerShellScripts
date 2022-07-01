@@ -142,7 +142,7 @@ function Resolve-Permissions
 
     foreach ($perm in $Permissions)
     {
-        switch ($permType)
+        switch ($PermissionType)
         {
             FullAccess
             {

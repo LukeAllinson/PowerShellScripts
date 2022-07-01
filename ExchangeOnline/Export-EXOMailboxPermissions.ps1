@@ -328,17 +328,29 @@ foreach ($mailbox in $mailboxes)
         Continue
     }
 
-    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $fullAccessPerms -PermissionType 'FullAccess' -IncludeNoPermissions $IncludeNoPermissions))
+    $resolvedFullAccessPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $fullAccessPerms -PermissionType 'FullAccess' -IncludeNoPermissions $IncludeNoPermissions)
+    if ($resolvedFullAccessPerms)
+    {
+        $output.AddRange($resolvedFullAccessPerms)
+    }
 
     # SendAs Permissions
     Write-Verbose "Processing SendAs permissions for $($mailbox.UserPrincipalName)"
     $sendAsPerms = $allSendAsPerms.Where( { $_.Identity -eq $mailbox.Identity } )
-    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions))
+    $resolvedSendAsPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions)
+    if ($resolvedSendAsPerms)
+    {
+        $output.AddRange($resolvedSendAsPerms)
+    }
 
     # SendOnBehalf Permissions
     Write-Verbose "Processing SendOnBehalfTo permissions for $($mailbox.UserPrincipalName)"
     $sendOnBehalfPerms = $mailbox.GrantSendOnBehalfTo
-    $output.AddRange([Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendOnBehalfPerms -PermissionType 'SendOnBehalf' -IncludeNoPermissions $IncludeNoPermissions))
+    $resolvedSendOnBehalfPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $sendOnBehalfPerms -PermissionType 'SendOnBehalf' -IncludeNoPermissions $IncludeNoPermissions)
+    if ($resolvedSendOnBehalfPerms)
+    {
+        $output.AddRange($resolvedSendOnBehalfPerms)
+    }
 }
 
 if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)

@@ -127,10 +127,10 @@ function Resolve-Permissions
     if ($IncludeNoPermissions -and !$Permissions)
     {
         $permEntry = [ordered]@{
-            UserPrincipalName           = $mailbox.UserPrincipalName
-            DisplayName                 = $mailbox.DisplayName
-            PrimarySmtpAddress          = $mailbox.PrimarySmtpAddress
-            RecipientTypeDetails        = $mailbox.RecipientTypeDetails
+            UserPrincipalName           = $Mailbox.UserPrincipalName
+            DisplayName                 = $Mailbox.DisplayName
+            PrimarySmtpAddress          = $Mailbox.PrimarySmtpAddress
+            RecipientTypeDetails        = $Mailbox.RecipientTypeDetails
             PermissionType              = $PermissionType
             TrusteeIdentity             = '<NoDefinedPermissions>'
             TrusteeName                 = '<NoDefinedPermissions>'
@@ -146,17 +146,17 @@ function Resolve-Permissions
         {
             FullAccess
             {
-                $permTrustee = $recipients.Where({ ($_.Name -eq $perm.User) -or ($_.PrimarySmtpAddress -eq $perm.User) -or ($_.emailaddresses -contains "smtp:$($faPerm.User)") })
+                $permTrustee = $Recipients.Where({ ($_.Name -eq $perm.User) -or ($_.PrimarySmtpAddress -eq $perm.User) -or ($_.emailaddresses -contains "smtp:$($faPerm.User)") })
                 $trusteeId = $perm.User
             }
             SendAs
             {
-                $permTrustee = $recipients.Where({ ($_.Name -eq $perm.Trustee) -or ($_.PrimarySmtpAddress -eq $perm.Trustee) -or ($_.emailaddresses -contains "smtp:$($faPerm.Trustee)") })
+                $permTrustee = $Recipients.Where({ ($_.Name -eq $perm.Trustee) -or ($_.PrimarySmtpAddress -eq $perm.Trustee) -or ($_.emailaddresses -contains "smtp:$($faPerm.Trustee)") })
                 $trusteeId = $perm.Trustee
             }
             SendOnBehalf
             {
-                $permTrustee = $recipients.Where({ $_.Name -eq $perm })
+                $permTrustee = $Recipients.Where({ $_.Name -eq $perm })
                 $trusteeId = $perm
             }
         }
@@ -164,10 +164,10 @@ function Resolve-Permissions
         if ($permTrustee)
         {
             $objPermEntry = [ordered]@{
-                UserPrincipalName           = $mailbox.UserPrincipalName
-                DisplayName                 = $mailbox.DisplayName
-                PrimarySmtpAddress          = $mailbox.PrimarySmtpAddress
-                RecipientTypeDetails        = $mailbox.RecipientTypeDetails
+                UserPrincipalName           = $Mailbox.UserPrincipalName
+                DisplayName                 = $Mailbox.DisplayName
+                PrimarySmtpAddress          = $Mailbox.PrimarySmtpAddress
+                RecipientTypeDetails        = $Mailbox.RecipientTypeDetails
                 PermissionType              = $PermissionType
                 TrusteeIdentity             = $permTrustee.PrimarySmtpAddress
                 TrusteeName                 = $permTrustee.Name
@@ -178,10 +178,10 @@ function Resolve-Permissions
         else
         {
             $objPermEntry = [ordered]@{
-                UserPrincipalName           = $mailbox.UserPrincipalName
-                DisplayName                 = $mailbox.DisplayName
-                PrimarySmtpAddress          = $mailbox.PrimarySmtpAddress
-                RecipientTypeDetails        = $mailbox.RecipientTypeDetails
+                UserPrincipalName           = $Mailbox.UserPrincipalName
+                DisplayName                 = $Mailbox.DisplayName
+                PrimarySmtpAddress          = $Mailbox.PrimarySmtpAddress
+                RecipientTypeDetails        = $Mailbox.RecipientTypeDetails
                 PermissionType              = $PermissionType
                 TrusteeIdentity             = $trusteeId
                 TrusteeName                 = '<TrusteeNotFound>'

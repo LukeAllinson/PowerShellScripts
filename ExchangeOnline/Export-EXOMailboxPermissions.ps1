@@ -235,10 +235,9 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status 'Getting In-Scope Mailboxes' -PercentComplete 30
 }
 
-Write-Verbose 'Getting Mailboxes from Exchange Online'
-
 try
 {
+    Write-Verbose 'Getting in-scope Mailboxes from Exchange Online'
     $mailboxes = @(Get-EXOMailbox @commandHashTable | Sort-Object UserPrincipalName)
 }
 catch
@@ -267,7 +266,7 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 
 try
 {
-    Write-Verbose 'Getting Distribution Groups from Exchange Online'
+    Write-Verbose 'Getting all Recipients from Exchange Online'
     $recipients = @(Get-EXORecipient @commandHashTable2 | Sort-Object Name)
 }
 catch
@@ -283,7 +282,7 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 
 try
 {
-    Write-Verbose 'Getting Mailbox SendAs permissions from Exchange Online'
+    Write-Verbose 'Getting all SendAs permissions from Exchange Online'
     $allSendAsPerms = @(Get-EXORecipientPermission -ResultSize unlimited).Where({ $_.AccessRights -eq 'SendAs' -and $_.Trustee -notmatch 'SELF' })
 }
 catch
@@ -359,9 +358,9 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Status 'Writing Output' -PercentComplete 95
 }
 
+# Export to csv
 $output | Export-Csv $outputFile -NoClobber -NoTypeInformation -Encoding UTF8
 
-# Export to csv
 if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     Write-Progress -Id 1 -Activity 'EXO Mailbox Permissions Report' -Completed

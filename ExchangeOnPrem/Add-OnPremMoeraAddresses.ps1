@@ -270,7 +270,6 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
     if ($InputCSV)
     {
         Write-Progress -Activity 'Processed mailboxes from csv' -Id 2 -Completed
-
     }
     Write-Progress -Activity 'Getting mailboxes from Exchange Online' -Id 1 -Completed
 }

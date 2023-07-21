@@ -222,7 +222,25 @@ if ($null -eq $moeraDomain)
 }
 if ($moeraDomain.count -gt 1)
 {
-    throw 'More than 1 MOERA (.mail.onmicrosoft.com) domain found. Exiting script.'
+    foreach ($domain in $moeraDomain)
+    {
+        '{0} - {1}' -f ($moeraDomain.IndexOf($domain) + 1), $domain.DomainName.Address
+    }
+    $Choice = ''
+    while ([string]::IsNullOrEmpty($Choice))
+    {
+        $Choice = Read-Host 'Please choose domain by number '
+        if ($Choice -notin 1..$moeraDomain.Count)
+        {
+            [console]::Beep(1000, 300)
+            Write-Warning ''
+            Write-Warning ('    Your choice [ {0} ] is not valid.' -f $Choice)
+            Write-Warning ('        The valid choices are 1 thru {0}.' -f $LocalGroupList.Count)
+            Write-Warning '        Please try again ...'
+            $Choice = ''
+        }
+    }
+    $moeraDomain = $moeraDomain[$Choice - 1]
 }
 $moeraAddressDomain = $moeraDomain.DomainName.Address
 
@@ -230,7 +248,7 @@ $moeraAddressDomain = $moeraDomain.DomainName.Address
 $commandHashTable = @{
     ResultSize  = 'Unlimited'
     ErrorAction = 'Stop'
-    Filter      = { emailAddresses -notlike '*.mail.onmicrosoft.com' -and RecipientTypeDetails -ne 'DiscoveryMailbox' }
+    Filter      = "emailAddresses -notlike `"*@$moeraAddressDomain`" -and RecipientTypeDetails -ne 'DiscoveryMailbox'"
 }
 
 try

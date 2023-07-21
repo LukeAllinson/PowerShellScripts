@@ -86,7 +86,7 @@ function Add-MoeraAddress
         [Parameter(Mandatory)]
         [string]
         $MoeraAddressDomain,
-        [Parameter()]
+        [Parameter(Mandatory)]
         [System.Boolean]
         $ReportOnly
     )

@@ -268,28 +268,14 @@ foreach ($mailbox in $mailboxes)
             {
                 Write-Progress -Id 2 -ParentId 1 -Activity 'Processed mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
             }
-            if ($ReportOnly)
-            {
-                $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -WhatIf
-            }
-            else
-            {
-                $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
-            }
+            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -ReportOnly $ReportOnly
             $output.Add([PSCustomObject]$addMoeraAddress) | Out-Null
             $j++
         }
     }
     else
     {
-        if ($ReportOnly)
-        {
-            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -WhatIf
-        }
-        else
-        {
-            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
-        }
+        $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -ReportOnly $ReportOnly
         $output.Add([PSCustomObject]$addMoeraAddress) | Out-Null
     }
     $i++

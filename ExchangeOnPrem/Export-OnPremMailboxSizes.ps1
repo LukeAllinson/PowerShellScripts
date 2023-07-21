@@ -154,6 +154,8 @@ function Get-MailboxInformation ($mailbox)
         DisplayName               = $mailbox.Displayname
         PrimarySmtpAddress        = $mailbox.PrimarySmtpAddress
         Alias                     = $mailbox.Alias
+        SamAccountName            = $mailbox.SamAccountName
+        OrganizationalUnit        = $mailbox.OrganizationalUnit
         RecipientTypeDetails      = $mailbox.RecipientTypeDetails
         IsInactiveMailbox         = $mailbox.IsInactiveMailbox
         LitigationHoldEnabled     = $mailbox.LitigationHoldEnabled

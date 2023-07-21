@@ -22,6 +22,9 @@
         Note: All mailboxes are still retrieved and then compared to the CSV to ensure all requested information is captured.
         Note2: Progress is shown as overall progress of all mailboxes plus progress of CSV contents.
 
+    .PARAMETER ReportOnly
+        Runs the Set-Mailbox command with the "WhatIf" parameter, meaning that no actual changes are made but the command is tested to ensure there are no errors and a report is still generated.
+
     .EXAMPLE
         .\Add-OnPremMoeraAddresses.ps1 -OutputPath C:\Scripts\
         Adds Moera addresses to all mailboxes that do not have one.
@@ -68,7 +71,10 @@ param
         }
     )]
     [IO.FileInfo]
-    $InputCSV
+    $InputCSV,
+    [Parameter()]
+    [switch]
+    $ReportOnly
 )
 function Add-MoeraAddress
 {
@@ -79,7 +85,10 @@ function Add-MoeraAddress
         $Mailbox,
         [Parameter(Mandatory)]
         [string]
-        $MoeraAddressDomain
+        $MoeraAddressDomain,
+        [Parameter()]
+        [switch]
+        $ReportOnly
     )
     $moeraAddress = [string]::Join('@', $Mailbox.Alias, $MoeraAddressDomain)
     $moeraOutput = [ordered]@{
@@ -93,7 +102,14 @@ function Add-MoeraAddress
     }
     try
     {
-        Set-Mailbox -Identity $Mailbox.Identity -EmailAddresses @{ add = $moeraAddress } -ErrorAction Stop
+        if ($ReportOnly)
+        {
+            Set-Mailbox -Identity $Mailbox.Identity -EmailAddresses @{ add = $moeraAddress } -ErrorAction Stop -WhatIf
+        }
+        else
+        {
+            Set-Mailbox -Identity $Mailbox.Identity -EmailAddresses @{ add = $moeraAddress } -ErrorAction Stop
+        }
         Write-Verbose "Successfully added $moeraAddress to mailbox $($Mailbox.UserPrincipalName)"
         $moeraOutput['AddedMoeraAddress'] = 'Success'
         $moeraOutput['Error'] = ''
@@ -252,14 +268,28 @@ foreach ($mailbox in $mailboxes)
             {
                 Write-Progress -Id 2 -ParentId 1 -Activity 'Processed mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
             }
-            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
+            if ($ReportOnly)
+            {
+                $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -WhatIf
+            }
+            else
+            {
+                $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
+            }
             $output.Add([PSCustomObject]$addMoeraAddress) | Out-Null
             $j++
         }
     }
     else
     {
-        $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
+        if ($ReportOnly)
+        {
+            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -WhatIf
+        }
+        else
+        {
+            $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain
+        }
         $output.Add([PSCustomObject]$addMoeraAddress) | Out-Null
     }
     $i++

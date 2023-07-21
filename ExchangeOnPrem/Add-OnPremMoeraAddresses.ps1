@@ -87,7 +87,7 @@ function Add-MoeraAddress
         [string]
         $MoeraAddressDomain,
         [Parameter()]
-        [switch]
+        [System.Boolean]
         $ReportOnly
     )
     $moeraAddress = [string]::Join('@', $Mailbox.Alias, $MoeraAddressDomain)
@@ -105,14 +105,16 @@ function Add-MoeraAddress
         if ($ReportOnly)
         {
             Set-Mailbox -Identity $Mailbox.Identity -EmailAddresses @{ add = $moeraAddress } -ErrorAction Stop -WhatIf
+            $moeraOutput['AddedMoeraAddress'] = 'ReportOnly: No changes made'
+            $moeraOutput['Error'] = ''
         }
         else
         {
             Set-Mailbox -Identity $Mailbox.Identity -EmailAddresses @{ add = $moeraAddress } -ErrorAction Stop
+            $moeraOutput['AddedMoeraAddress'] = 'Success'
+            $moeraOutput['Error'] = ''
         }
         Write-Verbose "Successfully added $moeraAddress to mailbox $($Mailbox.UserPrincipalName)"
-        $moeraOutput['AddedMoeraAddress'] = 'Success'
-        $moeraOutput['Error'] = ''
     }
     catch
     {
@@ -234,8 +236,9 @@ if ($moeraDomain.count -gt 1)
         {
             [console]::Beep(1000, 300)
             Write-Warning ''
+            # Robin's favourite joke code snippet
             Write-Warning ('    Your choice [ {0} ] is not valid.' -f $Choice)
-            Write-Warning ('        The valid choices are 1 thru {0}.' -f $LocalGroupList.Count)
+            Write-Warning ('        The valid choices are 1 thru {0}.' -f $moeraDomain.Count)
             Write-Warning '        Please try again ...'
             $Choice = ''
         }

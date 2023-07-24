@@ -12,7 +12,7 @@
                  Robin Dadswell (github:RobinDadswell)
 
     .PARAMETER DomainName
-        Specifies the Domain for which email addresses will be removed from mailboxes.
+        Specifies the Domain for which email addresses will be removed from mailboxes; the domain will be validated by a simple RegEx filter.
 
     .PARAMETER OutputPath
         Full path to a folder to save the results report.
@@ -264,7 +264,7 @@ foreach ($mailbox in $mailboxes)
         {
             if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
             {
-                Write-Progress -Id 2 -ParentId 1 -Activity 'Processed mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
+                Write-Progress -Id 2 -ParentId 1 -Activity 'Processing mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
             }
             foreach ($emailAddress in $($mailbox.EmailAddresses.SmtpAddress.Where({ $_ -match $DomainName })))
             {
@@ -291,9 +291,9 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     if ($InputCSV)
     {
-        Write-Progress -Activity 'Processed mailboxes from csv' -Id 2 -Completed
+        Write-Progress -Activity 'Processing mailboxes from csv' -Id 2 -Completed
     }
-    Write-Progress -Activity 'Getting mailboxes from Exchange Online' -Id 1 -Completed
+    Write-Progress -Activity 'Remove Legacy Email Addresses' -Id 1 -Completed
 }
 if ($output)
 {

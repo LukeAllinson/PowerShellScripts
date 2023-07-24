@@ -287,7 +287,7 @@ foreach ($mailbox in $mailboxes)
         {
             if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
             {
-                Write-Progress -Id 2 -ParentId 1 -Activity 'Processed mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
+                Write-Progress -Id 2 -ParentId 1 -Activity 'Processing mailboxes from csv' -Status "Processing $($j) of $($csvCount)" -PercentComplete (($j * 100) / $csvCount)
             }
             $addMoeraAddress = Add-MoeraAddress -Mailbox $mailbox -MoeraAddressDomain $moeraAddressDomain -ReportOnly $ReportOnly
             $output.Add([PSCustomObject]$addMoeraAddress) | Out-Null
@@ -306,9 +306,9 @@ if (!$PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent)
 {
     if ($InputCSV)
     {
-        Write-Progress -Activity 'Processed mailboxes from csv' -Id 2 -Completed
+        Write-Progress -Activity 'Processing mailboxes from csv' -Id 2 -Completed
     }
-    Write-Progress -Activity 'Getting mailboxes from Exchange Online' -Id 1 -Completed
+    Write-Progress -Activity 'Add On-Premises MOERA Addresses' -Id 1 -Completed
 }
 if ($output)
 {

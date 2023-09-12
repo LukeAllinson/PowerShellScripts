@@ -138,97 +138,133 @@ function Resolve-Permissions
         {
             FullAccess
             {
-                $null = $sausages
+                $permission = $null
                 $permTrustee = $Recipients.Where({ ($_.Alias -eq $perm.User.ToString().Split('\')[1]) -or ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1]) -or ($_.Name -eq $perm.User.ToString().Split('\')[1]) -or ($_.PrimarySmtpAddress -eq $perm.User.ToString().Split('\')[1]) -or ($_.emailaddresses -contains "smtp:$($perm.User.ToString().Split('\')[1])") })
                 if (!$permTrustee)
                 {
-                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1])})
+                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1]) })
                     if ($permTrustee)
                     {
                         Switch ($permTrustee.GroupType)
+                        {
+                                ({ $PSItem -match 'BuiltinLocal' })
                             {
-                                ({$PSItem -match "BuiltinLocal"}) {$sausages = "BuiltinLocal"}
-                                ({$PSItem -match "DomainLocal"}) {$sausages = "DomainLocal"}
-                                ({$PSItem -match "Global"}) {$sausages = "Global"}
-                                ({$PSItem -match "Universal"}) {$sausages = "Universal"}
+                                $permission = 'BuiltinLocal'
                             }
-                        if ($permTrustee.GroupType -match "SecurityEnabled")
+                                ({ $PSItem -match 'DomainLocal' })
                             {
-                                $sausages = $sausages + "SecurityGroup"
+                                $permission = 'DomainLocal'
                             }
+                                ({ $PSItem -match 'Global' })
+                            {
+                                $permission = 'Global'
+                            }
+                                ({ $PSItem -match 'Universal' })
+                            {
+                                $permission = 'Universal'
+                            }
+                        }
+                        if ($permTrustee.GroupType -match 'SecurityEnabled')
+                        {
+                            $permission = $permission + 'SecurityGroup'
+                        }
                         else
                         {
-                            $sausages = $sausages + "DistributionGroup"
+                            $permission = $permission + 'DistributionGroup'
                         }
                     }
                 }
                 else
                 {
-                    $sausages = $permTrustee.RecipientTypeDetails
+                    $permission = $permTrustee.RecipientTypeDetails
                 }
                 $trusteeId = $perm.User
             }
             SendAs
             {
-                $null = $sausages
+                $permission = $null
                 $permTrustee = $Recipients.Where({ ($_.Alias -eq $perm.User.ToString().Split('\')[1]) -or ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1]) -or ($_.Name -eq $perm.User.ToString().Split('\')[1]) -or ($_.PrimarySmtpAddress -eq $perm.User.ToString().Split('\')[1]) -or ($_.emailaddresses -contains "smtp:$($perm.User.ToString().Split('\')[1])") })
                 if (!$permTrustee)
                 {
-                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1])})
+                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.User.ToString().Split('\')[1]) })
                     if ($permTrustee)
                     {
                         Switch ($permTrustee.GroupType)
+                        {
+                                ({ $PSItem -match 'BuiltinLocal' })
                             {
-                                ({$PSItem -match "BuiltinLocal"}) {$sausages = "BuiltinLocal"}
-                                ({$PSItem -match "DomainLocal"}) {$sausages = "DomainLocal"}
-                                ({$PSItem -match "Global"}) {$sausages = "Global"}
-                                ({$PSItem -match "Universal"}) {$sausages = "Universal"}
+                                $permission = 'BuiltinLocal'
                             }
-                        if ($permTrustee.GroupType -match "SecurityEnabled")
+                                ({ $PSItem -match 'DomainLocal' })
                             {
-                                $sausages = $sausages + "SecurityGroup"
+                                $permission = 'DomainLocal'
                             }
+                                ({ $PSItem -match 'Global' })
+                            {
+                                $permission = 'Global'
+                            }
+                                ({ $PSItem -match 'Universal' })
+                            {
+                                $permission = 'Universal'
+                            }
+                        }
+                        if ($permTrustee.GroupType -match 'SecurityEnabled')
+                        {
+                            $permission = $permission + 'SecurityGroup'
+                        }
                         else
                         {
-                            $sausages = $sausages + "DistributionGroup"
+                            $permission = $permission + 'DistributionGroup'
                         }
                     }
                 }
                 else
                 {
-                    $sausages = $permTrustee.RecipientTypeDetails
+                    $permission = $permTrustee.RecipientTypeDetails
                 }
                 $trusteeId = $perm.User
             }
             SendOnBehalf
             {
-                $null = $sausages
+                $permission = $null
                 $permTrustee = $Recipients.Where({ $_.Name -eq $perm.Name })
                 if (!$permTrustee)
                 {
-                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.Name)})
+                    $permTrustee = $Groups.Where({ ($_.SamAccountName -eq $perm.Name) })
                     if ($permTrustee)
                     {
                         Switch ($permTrustee.GroupType)
+                        {
+                                ({ $PSItem -match 'BuiltinLocal' })
                             {
-                                ({$PSItem -match "BuiltinLocal"}) {$sausages = "BuiltinLocal"}
-                                ({$PSItem -match "DomainLocal"}) {$sausages = "DomainLocal"}
-                                ({$PSItem -match "Global"}) {$sausages = "Global"}
-                                ({$PSItem -match "Universal"}) {$sausages = "Universal"}
+                                $permission = 'BuiltinLocal'
                             }
-                        if ($permTrustee.GroupType -match "SecurityEnabled")
+                                ({ $PSItem -match 'DomainLocal' })
                             {
-                                $sausages = $sausages + "SecurityGroup"
+                                $permission = 'DomainLocal'
                             }
+                                ({ $PSItem -match 'Global' })
+                            {
+                                $permission = 'Global'
+                            }
+                                ({ $PSItem -match 'Universal' })
+                            {
+                                $permission = 'Universal'
+                            }
+                        }
+                        if ($permTrustee.GroupType -match 'SecurityEnabled')
+                        {
+                            $permission = $permission + 'SecurityGroup'
+                        }
                         else
                         {
-                            $sausages = $sausages + "DistributionGroup"
+                            $permission = $permission + 'DistributionGroup'
                         }
                     }
                 }
                 else
                 {
-                    $sausages = $permTrustee.RecipientTypeDetails
+                    $permission = $permTrustee.RecipientTypeDetails
                 }
                 $trusteeId = $perm
             }
@@ -245,7 +281,7 @@ function Resolve-Permissions
                 TrusteeIdentity             = $permTrustee.PrimarySmtpAddress
                 TrusteeName                 = $permTrustee.Name
                 TrusteeSamAccountName       = $permTrustee.SamAccountName
-                TrusteeRecipientTypeDetails = $sausages
+                TrusteeRecipientTypeDetails = $permission
             }
             $output.Add([PSCustomObject]$objPermEntry) | Out-Null
         }
@@ -380,16 +416,16 @@ foreach ($mailbox in $mailboxes)
     {
         Write-Verbose "Failure getting FullAccess permissions for $($mailbox.UserPrincipalName)"
         $faPermEntry = [ordered]@{
-            UserPrincipalName       = $mailbox.UserPrincipalName
-            DisplayName             = $mailbox.DisplayName
-            PrimarySmtpAddress      = $mailbox.PrimarySmtpAddress
-            SamAccountName          = $mailbox.SamAccountName
-            RecipientTypeDetails    = $mailbox.RecipientTypeDetails
-            PermissionType          = 'FullAccess'
-            TrusteeUPN              = '<ErrorRunningCommand>'
-            TrusteeDisplayName      = '<ErrorRunningCommand>'
-            TrusteeSamAccountName   = '<ErrorRunningCommand>'
-            TrusteeStatus           = '<ErrorRunningCommand>'
+            UserPrincipalName     = $mailbox.UserPrincipalName
+            DisplayName           = $mailbox.DisplayName
+            PrimarySmtpAddress    = $mailbox.PrimarySmtpAddress
+            SamAccountName        = $mailbox.SamAccountName
+            RecipientTypeDetails  = $mailbox.RecipientTypeDetails
+            PermissionType        = 'FullAccess'
+            TrusteeUPN            = '<ErrorRunningCommand>'
+            TrusteeDisplayName    = '<ErrorRunningCommand>'
+            TrusteeSamAccountName = '<ErrorRunningCommand>'
+            TrusteeStatus         = '<ErrorRunningCommand>'
         }
         $output.Add([PSCustomObject]$faPermEntry) | Out-Null
         Continue
@@ -405,26 +441,27 @@ foreach ($mailbox in $mailboxes)
     Write-Verbose "Processing SendAs permissions for $($mailbox.UserPrincipalName)"
     try
     {
-        $sendAsPerms = @(Get-ADPermission -Identity $mailbox.Name).Where({ ($_.ExtendedRights -like "*send*") -and ($_.User -notmatch "SELF") })
+        $sendAsPerms = @(Get-ADPermission -Identity $mailbox.Name).Where({ ($_.ExtendedRights -like '*send*') -and ($_.User -notmatch 'SELF') })
     }
-    catch {
+    catch
+    {
         Write-Verbose "Failure getting SendAs permissions for $($mailbox.UserPrincipalName)"
         $saPermEntry = [ordered]@{
-            UserPrincipalName       = $mailbox.UserPrincipalName
-            DisplayName             = $mailbox.DisplayName
-            PrimarySmtpAddress      = $mailbox.PrimarySmtpAddress
-            SamAccountName          = $mailbox.SamAccountName
-            RecipientTypeDetails    = $mailbox.RecipientTypeDetails
-            PermissionType          = 'SendAs'
-            TrusteeUPN              = '<ErrorRunningCommand>'
-            TrusteeDisplayName      = '<ErrorRunningCommand>'
-            TrusteeSamAccountName   = '<ErrorRunningCommand>'
-            TrusteeStatus           = '<ErrorRunningCommand>'
+            UserPrincipalName     = $mailbox.UserPrincipalName
+            DisplayName           = $mailbox.DisplayName
+            PrimarySmtpAddress    = $mailbox.PrimarySmtpAddress
+            SamAccountName        = $mailbox.SamAccountName
+            RecipientTypeDetails  = $mailbox.RecipientTypeDetails
+            PermissionType        = 'SendAs'
+            TrusteeUPN            = '<ErrorRunningCommand>'
+            TrusteeDisplayName    = '<ErrorRunningCommand>'
+            TrusteeSamAccountName = '<ErrorRunningCommand>'
+            TrusteeStatus         = '<ErrorRunningCommand>'
         }
         $output.Add([PSCustomObject]$saPermEntry) | Out-Null
         Continue
     }
-        $resolvedSendAsPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Groups $groups -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions)
+    $resolvedSendAsPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Groups $groups -Mailbox $mailbox -Permissions $sendAsPerms -PermissionType 'SendAs' -IncludeNoPermissions $IncludeNoPermissions)
     if ($resolvedSendAsPerms)
     {
         $output.AddRange($resolvedSendAsPerms)

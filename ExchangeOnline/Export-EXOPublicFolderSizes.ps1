@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Public Folder information to a CSV file.
 
     .NOTES
-        Version: 0.6
+        Version: 0.7
+        Updated: 29-09-2025 v0.7    Updated test connection method
         Updated: 07-01-2022 v0.6    Updated to use .Where method instead of Where-Object for speed
                                     Fixed public folder owner display
         Updated: 06-01-2022 v0.5    Changed output file date to match order of ISO8601 standard
@@ -102,8 +103,8 @@ function Get-PublicFolderInformation ($publicFolder)
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+$exoSessions = Get-ConnectionInformation | Select-Object -Property Name, State
+if (($exoSessions | Where-Object { ($_.State -eq 'Connected') -and ($_.Name -like 'ExchangeOnline_*') }).Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline

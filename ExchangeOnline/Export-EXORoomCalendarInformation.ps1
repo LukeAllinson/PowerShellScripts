@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Room mailbox calendar processing inforamtion to a CSV file.
 
     .NOTES
-        Version: 0.5
+        Version: 0.6
+        Updated: 29-09-2025 v0.6    Updated test connection method
         Updated: 06-01-2022 v0.5    Changed output file date to match order of ISO8601 standard
         Updated: 10-11-2021 v0.4    Disabled write-progress if the verbose parameter is used
         Updated: 08-11-2021 v0.3    Updated filename ordering
@@ -100,8 +101,8 @@ function Get-RoomMailboxInformation ($mailbox)
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+$exoSessions = Get-ConnectionInformation | Select-Object -Property Name, State
+if (($exoSessions | Where-Object { ($_.State -eq 'Connected') -and ($_.Name -like 'ExchangeOnline_*') }).Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline

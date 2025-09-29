@@ -10,7 +10,8 @@
         This script connects to EXO and then gets Mailbox statistics
 
     .NOTES
-        Version: 0.12
+        Version: 0.13
+        Updated: 29-09-2025 v0.13   Updated test connection method
         Updated: 03-03-2033 v0.12   Removed DiscoveryMailboxes from results via where-object on initial Get-EXOMailbox
         Updated: 01-03-2022 v0.11   Updated to a Get Command - there will be a corresponding Export that utilises this data
         Updated: 01-03-2022 v0.10   Included a paramter to use an input CSV file
@@ -239,8 +240,8 @@ function Compare-EmailAddresses
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+$exoSessions = Get-ConnectionInformation | Select-Object -Property Name, State
+if (($exoSessions | Where-Object { ($_.State -eq 'Connected') -and ($_.Name -like 'ExchangeOnline_*') }).Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline

@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs permissions for each mailbox into a CSV
 
     .NOTES
-        Version: 0.8
+        Version: 0.9
+        Updated: 29-09-2025 v0.9    Updated test connection method
         Updated: 01-07-2022 v0.8    Refactored using a function for efficiency
                                     Fixed issue where non-user trustees (i.e. groups) were not captured
         Updated: 07-01-2022 v0.7    Updated to use .Where method instead of Where-Object for speed
@@ -195,8 +196,8 @@ function Resolve-Permissions
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+$exoSessions = Get-ConnectionInformation | Select-Object -Property Name, State
+if (($exoSessions | Where-Object { ($_.State -eq 'Connected') -and ($_.Name -like 'ExchangeOnline_*') }).Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline
@@ -324,7 +325,7 @@ foreach ($mailbox in $mailboxes)
             TrusteeStatus        = '<ErrorRunningCommand>'
         }
         $output.Add([PSCustomObject]$faPermEntry) | Out-Null
-        Continue
+        continue
     }
 
     $resolvedFullAccessPerms = [Object[]](Resolve-Permissions -Recipients $recipients -Mailbox $mailbox -Permissions $fullAccessPerms -PermissionType 'FullAccess' -IncludeNoPermissions $IncludeNoPermissions)

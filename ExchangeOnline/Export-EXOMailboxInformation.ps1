@@ -9,7 +9,8 @@
         This script connects to EXO and then outputs Mailbox and CAS Mailbox information to a CSV file.
 
     .NOTES
-        Version: 0.10
+        Version: 0.11
+        Updated: 29-09-2025 v0.11   Updated test connection method
         Updated: 17-01-2022 v0.10   Refactored to use Join-Object (https://github.com/ili101/Join-Object)
                                     Tested on ~55k mailboxes; join took 1 minute. Previous version of script (using Where-Object) took 3 days.
         Updated: 06-01-2022 v0.9    Added CAS Mailbox information
@@ -157,8 +158,8 @@ param
 
 ### Main Script
 # Check if there is an active Exchange Online PowerShell session and connect if not
-$PSSessions = Get-PSSession | Select-Object -Property State, Name
-if ((@($PSSessions) -like '@{State=Opened; Name=ExchangeOnlineInternalSession*').Count -eq 0)
+$exoSessions = Get-ConnectionInformation | Select-Object -Property Name, State
+if (($exoSessions | Where-Object { ($_.State -eq 'Connected') -and ($_.Name -like 'ExchangeOnline_*') }).Count -eq 0)
 {
     Write-Verbose 'Not connected to Exchange Online, prompting to connect'
     Connect-ExchangeOnline
